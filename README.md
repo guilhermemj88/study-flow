@@ -1,65 +1,77 @@
 # Study Flow
 
-MVP de uma aplicação web para planejamento de estudos com calendário mensal, registro rápido de resultados e persistência local. A interface foi desenhada para deixar o plano do mês visível, reduzir cliques e destacar o estado de cada atividade.
+Aplicação web para planejamento de estudos com calendário, fontes oficiais, banco de questões e desempenho persistente. A fase 2 preserva o dark theme e os fluxos do MVP, substituindo o `localStorage` por dados privados no Supabase.
 
-## O que está incluído
+## Funcionalidades
 
-- Calendário mensal responsivo com estados visuais: no prazo, atenção, reforço, atrasada e concluída.
-- Criação, edição, reagendamento e exclusão de atividades.
-- Fluxos de conclusão específicos para estudo e para questões/revisões/reforços.
-- Cálculo automático de aproveitamento e armazenamento dos resultados.
-- Página **Hoje** com itens críticos e atrasados primeiro.
-- Página **Desempenho** com totais e aproveitamento por matéria.
-- CRUD local de matérias e assuntos.
-- Dados de demonstração relativos ao mês atual.
-- Persistência no `localStorage`, sem autenticação ou serviços externos.
+- autenticação por e-mail e senha, sessão persistente e rotas protegidas;
+- calendário responsivo com criação, conclusão, edição, reagendamento e exclusão de atividades;
+- matérias, assuntos e plano ativo persistidos por usuário;
+- biblioteca de provas, editais e outras fontes, com upload privado de PDF/imagem;
+- seleção independente das fontes usadas para incidência e para questões;
+- cadastro manual de questões, filtros e sessões de exercício persistentes;
+- seleção determinística: nunca respondidas, erradas e depois as demais;
+- registro opcional do tema, subtema e motivo dos erros;
+- desempenho consolidado a partir de atividades e tentativas salvas no banco;
+- incidência por fonte editável manualmente, sempre acompanhada de sua base.
+
+IA, análise automática, servidor MCP, pagamentos e recursos sociais não fazem parte desta fase. A arquitetura futura do MCP está apenas documentada.
 
 ## Stack
 
-- Next.js 16 com App Router
-- React 19
-- TypeScript em modo estrito
+- Next.js 16, App Router e Proxy
+- React 19 e TypeScript estrito
 - Tailwind CSS 4
-- Lucide React para ícones
-- ESLint com as regras recomendadas do Next.js
+- Supabase Auth, PostgreSQL e Storage
+- `@supabase/ssr` e `@supabase/supabase-js`
+- Lucide React
 
-## Como executar
+## Configuração
 
-Pré-requisito: Node.js 20.9 ou superior. O projeto foi validado com Node.js 24 LTS.
+Pré-requisito: Node.js 20.9 ou superior.
+
+1. Siga [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).
+2. Crie `.env.local` a partir de `.env.example`.
+3. Instale e execute:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Abra [http://localhost:3000](http://localhost:3000).
+Abra [http://localhost:3000](http://localhost:3000). Sem as variáveis do Supabase, o build continua válido e a tela de login explica a configuração pendente; as áreas autenticadas não ficam acessíveis.
 
-Outros comandos:
+Comandos de validação:
 
 ```bash
+npm test
 npm run lint
 npm run build
-npm start
 ```
 
 ## Estrutura principal
 
 ```text
 src/
-├── app/                  # Rotas, metadata e estilos globais
-├── components/           # Calendário, atividades e páginas do dashboard
-├── hooks/                # Estado da aplicação e mutações persistidas
+├── app/                    # rotas, Proxy e estilos
+├── components/             # UI por domínio
+├── hooks/                  # estado assíncrono e mutações
 ├── lib/
-│   ├── study-engine/     # Pontos de extensão do futuro motor adaptativo
-│   ├── mock-data.ts      # Conteúdo inicial de demonstração
-│   └── storage.ts        # Persistência local versionada
-└── types/                # Modelos TypeScript do domínio
+│   ├── auth/               # operações de autenticação
+│   ├── data/               # repositories; a UI não consulta tabelas diretamente
+│   ├── study-engine/       # seleção de questões e extensões adaptativas
+│   └── supabase/           # clientes browser/server e renovação da sessão
+└── types/                  # modelos TypeScript
+supabase/migrations/        # schema, constraints, índices, RLS e Storage
+docs/                       # configuração, testes e desenho do MCP futuro
 ```
 
-Os componentes não contêm regras do futuro algoritmo adaptativo. As funções `processStudyResult`, `processExerciseResult`, `calculateNextReview` e `calculatePriority` ficam isoladas em `src/lib/study-engine` e, neste MVP, não criam atividades automaticamente.
+## Decisões de dados e segurança
 
-## Dados locais
+O Supabase é a fonte principal; não há persistência de domínio em `localStorage`. Todas as tabelas pessoais possuem `user_id` (o perfil usa o próprio `id` de `auth.users`), RLS para as quatro operações e chaves estrangeiras compostas que impedem relações entre recursos de usuários diferentes.
 
-Os dados são armazenados sob a chave `study-flow:data:v1` do `localStorage`. Em **Configurações → Restaurar demonstração**, é possível recuperar o conjunto inicial. Essa ação substitui alterações feitas no navegador atual.
+As alternativas foram normalizadas em `question_alternatives`, em vez de JSONB. Isso permite constraints para rótulo/ordem, exclusão em cascata, evolução independente e políticas de isolamento coerentes com a questão proprietária.
 
-Não há chaves de API, arquivos `.env`, banco externo, telemetria própria ou dados sensíveis neste projeto.
+Arquivos ficam no bucket privado `study-sources`, sob `user-id/sources/source-id/`, e são abertos por URL assinada curta. Nenhuma `service_role` key é usada no frontend ou versionada.
+
+Veja também [docs/MCP_ARCHITECTURE.md](docs/MCP_ARCHITECTURE.md) e [docs/TESTING.md](docs/TESTING.md).

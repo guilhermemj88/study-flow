@@ -8,6 +8,7 @@ import type {
   ActivityDraft,
   ActivityPriority,
   ActivityType,
+  ExerciseOrigin,
   StudyActivity,
   StudySubject,
 } from "@/types/activity";
@@ -16,8 +17,9 @@ import { Modal } from "@/components/ui/modal";
 interface ActivityFormModalProps {
   activity?: StudyActivity;
   initialDate?: string;
+  initialDraft?: Partial<ActivityDraft>;
   onClose: () => void;
-  onSubmit: (draft: ActivityDraft) => void;
+  onSubmit: (draft: ActivityDraft) => Promise<void> | void;
   open: boolean;
   subjects: StudySubject[];
 }
@@ -25,19 +27,23 @@ interface ActivityFormModalProps {
 export function ActivityFormModal({
   activity,
   initialDate,
+  initialDraft,
   onClose,
   onSubmit,
   open,
   subjects,
 }: ActivityFormModalProps) {
-  const [type, setType] = useState<ActivityType>(activity?.type ?? "study");
-  const [subject, setSubject] = useState(activity?.subject ?? subjects[0]?.name ?? "");
-  const [topic, setTopic] = useState(activity?.topic ?? "");
-  const [date, setDate] = useState(activity?.date ?? initialDate ?? toDateKey(new Date()));
-  const [estimatedMinutes, setEstimatedMinutes] = useState(activity?.estimatedMinutes ?? 40);
-  const [questionCount, setQuestionCount] = useState(activity?.questionCount ?? 10);
-  const [priority, setPriority] = useState<ActivityPriority>(activity?.priority ?? "medium");
-  const [notes, setNotes] = useState(activity?.notes ?? "");
+  const [type, setType] = useState<ActivityType>(activity?.type ?? initialDraft?.type ?? "study");
+  const [subject, setSubject] = useState(activity?.subject ?? initialDraft?.subject ?? subjects[0]?.name ?? "");
+  const [topic, setTopic] = useState(activity?.topic ?? initialDraft?.topic ?? "");
+  const [date, setDate] = useState(activity?.date ?? initialDraft?.date ?? initialDate ?? toDateKey(new Date()));
+  const [estimatedMinutes, setEstimatedMinutes] = useState(activity?.estimatedMinutes ?? initialDraft?.estimatedMinutes ?? 40);
+  const [questionCount, setQuestionCount] = useState(activity?.questionCount ?? initialDraft?.questionCount ?? 10);
+  const [priority, setPriority] = useState<ActivityPriority>(activity?.priority ?? initialDraft?.priority ?? "medium");
+  const [notes, setNotes] = useState(activity?.notes ?? initialDraft?.notes ?? "");
+  const [exerciseOrigin, setExerciseOrigin] = useState<ExerciseOrigin>(activity?.exerciseOrigin ?? initialDraft?.exerciseOrigin ?? "manual");
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
 
   const topicOptions = useMemo(
     () => subjects.find((item) => item.name === subject)?.topics ?? [],
@@ -45,21 +51,32 @@ export function ActivityFormModal({
   );
   const hasQuestions = type !== "study";
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!subject.trim() || !topic.trim() || !date || estimatedMinutes < 1) return;
 
-    onSubmit({
-      type,
-      subject: subject.trim(),
-      topic: topic.trim(),
-      date,
-      estimatedMinutes,
-      questionCount: hasQuestions && questionCount > 0 ? questionCount : undefined,
-      priority,
-      status: activity?.status ?? (priority === "critical" ? "attention" : "planned"),
-      notes: notes.trim() || undefined,
-    });
+    setSaving(true);
+    setFormError("");
+    try {
+      await onSubmit({
+        type,
+        subject: subject.trim(),
+        topic: topic.trim(),
+        date,
+        estimatedMinutes,
+        questionCount: hasQuestions && questionCount > 0 ? questionCount : undefined,
+        priority,
+        status: activity?.status ?? initialDraft?.status ?? (priority === "critical" ? "attention" : "planned"),
+        notes: notes.trim() || undefined,
+        exerciseOrigin: hasQuestions ? exerciseOrigin : "manual",
+        linkedStudyActivityId: activity?.linkedStudyActivityId ?? initialDraft?.linkedStudyActivityId,
+        planId: activity?.planId ?? initialDraft?.planId,
+      });
+    } catch (caughtError) {
+      setFormError(caughtError instanceof Error ? caughtError.message : "Não foi possível salvar a atividade.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -137,15 +154,19 @@ export function ActivityFormModal({
           </label>
 
           {hasQuestions ? (
-            <label className="field">
-              <span>Quantidade de questões</span>
-              <input
-                min="1"
-                onChange={(event) => setQuestionCount(Number(event.target.value))}
-                type="number"
-                value={questionCount}
-              />
-            </label>
+            <>
+              <label className="field">
+                <span>Quantidade de questões</span>
+                <input min="1" onChange={(event) => setQuestionCount(Number(event.target.value))} type="number" value={questionCount} />
+              </label>
+              <div className="field field--wide">
+                <span>Origem</span>
+                <div className="origin-options">
+                  <label><input checked={exerciseOrigin === "manual"} name="exercise-origin" onChange={() => setExerciseOrigin("manual")} type="radio" /><span>Registrar resultado manualmente</span></label>
+                  <label><input checked={exerciseOrigin === "question_bank"} name="exercise-origin" onChange={() => setExerciseOrigin("question_bank")} type="radio" /><span>Resolver questões do banco</span></label>
+                </div>
+              </div>
+            </>
           ) : null}
 
           <label className="field">
@@ -171,11 +192,12 @@ export function ActivityFormModal({
           />
         </label>
 
+        {formError ? <p className="form-error">{formError}</p> : null}
         <footer className="form-footer">
           <button className="button button--ghost" onClick={onClose} type="button">Cancelar</button>
-          <button className="button button--primary" type="submit">
+          <button className="button button--primary" disabled={saving} type="submit">
             <CalendarPlus size={17} />
-            {activity ? "Salvar alterações" : "Adicionar ao calendário"}
+            {saving ? "Salvando…" : activity ? "Salvar alterações" : "Adicionar ao calendário"}
           </button>
         </footer>
       </form>

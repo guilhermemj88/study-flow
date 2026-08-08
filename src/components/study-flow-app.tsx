@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { useStudyData } from "@/hooks/use-study-data";
 import { processExerciseResult, processStudyResult } from "@/lib/study-engine";
 import type { ActivityDraft, ActivityResult, StudyActivity } from "@/types/activity";
@@ -14,6 +15,8 @@ import { SettingsPage } from "@/components/settings/settings-page";
 import { SubjectsPage } from "@/components/subjects/subjects-page";
 import { TodayPage } from "@/components/today/today-page";
 import { LoadingScreen } from "@/components/ui/loading-screen";
+import { useAuthUser } from "@/hooks/use-auth-user";
+import { signOut } from "@/lib/auth/auth-service";
 
 export type StudyFlowView = "calendar" | "today" | "performance" | "subjects" | "settings";
 
@@ -24,13 +27,19 @@ interface StudyFlowAppProps {
 interface FormState {
   activity?: StudyActivity;
   initialDate?: string;
+  initialDraft?: Partial<ActivityDraft>;
 }
 
 export function StudyFlowApp({ view }: StudyFlowAppProps) {
+  const router = useRouter();
+  const user = useAuthUser();
   const {
     activities,
     subjects,
     isReady,
+    error,
+    activePlan,
+    attemptSummaries,
     addActivity,
     updateActivity,
     completeActivity,
@@ -38,7 +47,6 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
     addSubject,
     updateSubject,
     deleteSubject,
-    resetDemoData,
   } = useStudyData();
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [formState, setFormState] = useState<FormState | null>(null);
@@ -53,17 +61,17 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
     [activities, completionActivityId],
   );
 
-  function submitActivity(draft: ActivityDraft) {
+  async function submitActivity(draft: ActivityDraft) {
     if (formState?.activity) {
-      updateActivity(formState.activity.id, draft);
+      await updateActivity(formState.activity.id, draft);
     } else {
-      addActivity(draft);
+      await addActivity(draft);
     }
     setFormState(null);
   }
 
-  function submitCompletion(activity: StudyActivity, result: ActivityResult) {
-    completeActivity(activity.id, result);
+  async function submitCompletion(activity: StudyActivity, result: ActivityResult) {
+    await completeActivity(activity, result);
     if (activity.type === "study") {
       processStudyResult(activity, result);
     } else {
@@ -78,7 +86,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
       case "today":
         return <TodayPage activities={activities} onOpenActivity={(activity) => setSelectedActivityId(activity.id)} />;
       case "performance":
-        return <PerformancePage activities={activities} subjects={subjects} />;
+        return <PerformancePage activities={activities} attemptSummaries={attemptSummaries} subjects={subjects} />;
       case "subjects":
         return (
           <SubjectsPage
@@ -92,7 +100,13 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
         return (
           <SettingsPage
             activityCount={activities.length}
-            onResetDemoData={resetDemoData}
+            email={user?.email}
+            onLogout={async () => {
+              await signOut();
+              router.replace("/login");
+              router.refresh();
+            }}
+            planName={activePlan?.name}
             subjectCount={subjects.length}
           />
         );
@@ -109,6 +123,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
 
   return (
     <AppShell>
+      {error ? <div className="global-page-error" role="alert">{error}</div> : null}
       {renderView()}
 
       {selectedActivity ? (
@@ -116,7 +131,33 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
           activity={selectedActivity}
           key={selectedActivity.id}
           onClose={() => setSelectedActivityId(null)}
-          onComplete={() => setCompletionActivityId(selectedActivity.id)}
+          linkedExerciseCount={activities.filter((activity) => activity.linkedStudyActivityId === selectedActivity.id).length}
+          onComplete={() => {
+            if (selectedActivity.exerciseOrigin === "question_bank") {
+              const params = new URLSearchParams({ activityId: selectedActivity.id });
+              if (selectedActivity.subjectId) params.set("subjectId", selectedActivity.subjectId);
+              if (selectedActivity.topicId) params.set("topicId", selectedActivity.topicId);
+              router.push(`/questoes?${params.toString()}`);
+              return;
+            }
+            setCompletionActivityId(selectedActivity.id);
+          }}
+          onCreateLinkedExercise={() => {
+            setFormState({ initialDraft: {
+              type: "exercise",
+              subject: selectedActivity.subject,
+              topic: selectedActivity.topic,
+              date: selectedActivity.date,
+              estimatedMinutes: 30,
+              questionCount: 10,
+              priority: selectedActivity.priority,
+              status: "planned",
+              exerciseOrigin: "question_bank",
+              linkedStudyActivityId: selectedActivity.id,
+              planId: selectedActivity.planId,
+            } });
+            setSelectedActivityId(null);
+          }}
           onDelete={() => {
             deleteActivity(selectedActivity.id);
             setSelectedActivityId(null);
@@ -133,6 +174,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
         <ActivityFormModal
           activity={formState.activity}
           initialDate={formState.initialDate}
+          initialDraft={formState.initialDraft}
           key={formState.activity?.id ?? `new-${formState.initialDate ?? "today"}`}
           onClose={() => setFormState(null)}
           onSubmit={submitActivity}

@@ -7,6 +7,7 @@ import {
   Clock3,
   Edit3,
   Hash,
+  Plus,
   RotateCw,
   Trash2,
   X,
@@ -28,18 +29,22 @@ interface ActivityDetailDrawerProps {
   activity: StudyActivity;
   onClose: () => void;
   onComplete: () => void;
+  onCreateLinkedExercise: () => void;
   onDelete: () => void;
   onEdit: () => void;
   onReschedule: (date: string) => void;
+  linkedExerciseCount?: number;
 }
 
 export function ActivityDetailDrawer({
   activity,
   onClose,
   onComplete,
+  onCreateLinkedExercise,
   onDelete,
   onEdit,
   onReschedule,
+  linkedExerciseCount = 0,
 }: ActivityDetailDrawerProps) {
   const [showReschedule, setShowReschedule] = useState(false);
   const [showDelete, setShowDelete] = useState(false);
@@ -111,7 +116,22 @@ export function ActivityDetailDrawer({
               {result.errorReasons?.length ? (
                 <div className="result-tags">{result.errorReasons.map((item) => <span key={item}>{errorReasonLabels[item]}</span>)}</div>
               ) : null}
+              {result.errorDetails?.length ? (
+                <div className="drawer-error-list">
+                  {result.errorDetails.map((detail, index) => (
+                    <div key={`${detail.topicText}-${index}`}><strong>{detail.topicText}{detail.subtopicText ? ` · ${detail.subtopicText}` : ""}</strong><span>{detail.errorCount} {detail.errorCount === 1 ? "erro" : "erros"} · {errorReasonLabels[detail.errorReason]}</span></div>
+                  ))}
+                </div>
+              ) : null}
               {result.notes ? <p className="detail-note">{result.notes}</p> : null}
+            </section>
+          ) : null}
+
+          {activity.type === "study" && activity.status === "completed" ? (
+            <section className="detail-section linked-exercises">
+              <h3>Exercícios</h3>
+              <p>{linkedExerciseCount ? `${linkedExerciseCount} ${linkedExerciseCount === 1 ? "exercício vinculado" : "exercícios vinculados"}` : "Nenhum exercício registrado"}</p>
+              <button className="button button--ghost" onClick={onCreateLinkedExercise} type="button"><Plus size={16} /> Registrar exercícios deste assunto</button>
             </section>
           ) : null}
 

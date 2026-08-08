@@ -39,9 +39,10 @@ export const studyMethodLabels: Record<StudyMethod, string> = {
 export const errorReasonLabels: Record<ErrorReason, string> = {
   did_not_know: "Não sabia o conteúdo",
   forgot: "Esqueci",
-  mixed_concepts: "Confundi conceitos",
+  confused_concepts: "Confundi conceitos",
   interpretation: "Interpretação",
   inattention: "Desatenção",
+  other: "Outro",
 };
 
 export type VisualStatus = "on-track" | "attention" | "reinforcement" | "overdue" | "completed";

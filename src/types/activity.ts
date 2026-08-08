@@ -12,9 +12,21 @@ export type StudyMethod = "class" | "reading" | "summary" | "flashcards" | "othe
 export type ErrorReason =
   | "did_not_know"
   | "forgot"
-  | "mixed_concepts"
+  | "confused_concepts"
   | "interpretation"
-  | "inattention";
+  | "inattention"
+  | "other";
+
+export type ExerciseOrigin = "manual" | "question_bank";
+
+export interface ActivityErrorDetailInput {
+  topicId?: string;
+  topicText: string;
+  subtopicText?: string;
+  errorCount: number;
+  errorReason: ErrorReason;
+  notes?: string;
+}
 
 export interface ActivityResult {
   actualMinutes?: number;
@@ -25,11 +37,15 @@ export interface ActivityResult {
   perceivedDifficulty: PerceivedDifficulty;
   errorReasons?: ErrorReason[];
   studyMethods?: StudyMethod[];
+  errorDetails?: ActivityErrorDetailInput[];
   notes?: string;
 }
 
 export interface StudyActivity {
   id: string;
+  planId?: string;
+  subjectId?: string;
+  topicId?: string;
   type: ActivityType;
   subject: string;
   topic: string;
@@ -39,6 +55,8 @@ export interface StudyActivity {
   priority: ActivityPriority;
   status: ActivityStatus;
   notes?: string;
+  exerciseOrigin?: ExerciseOrigin;
+  linkedStudyActivityId?: string;
   createdAt: string;
   completedAt?: string;
   result?: ActivityResult;
@@ -48,12 +66,30 @@ export interface StudySubject {
   id: string;
   name: string;
   topics: string[];
+  topicRecords?: Array<{ id: string; name: string }>;
 }
 
 export interface StudyData {
-  version: 1;
   activities: StudyActivity[];
   subjects: StudySubject[];
+  activePlan?: StudyPlan;
+  attemptSummaries: QuestionAttemptSummary[];
+}
+
+export interface StudyPlan {
+  id: string;
+  name: string;
+  targetExamName?: string;
+  examDate?: string;
+}
+
+export interface QuestionAttemptSummary {
+  id: string;
+  activityId?: string;
+  subject: string;
+  topic?: string;
+  correct: boolean;
+  answeredAt: string;
 }
 
 export type ActivityDraft = Omit<StudyActivity, "id" | "createdAt" | "completedAt" | "result">;

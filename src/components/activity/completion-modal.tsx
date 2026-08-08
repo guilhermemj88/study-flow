@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, type FormEvent } from "react";
-import { Check, CheckCircle2 } from "lucide-react";
+import { Check, CheckCircle2, Plus, Trash2 } from "lucide-react";
 import {
   difficultyLabels,
   errorReasonLabels,
@@ -9,6 +9,7 @@ import {
 } from "@/lib/activity-meta";
 import type {
   ActivityResult,
+  ActivityErrorDetailInput,
   ErrorReason,
   PerceivedDifficulty,
   StudyActivity,
@@ -19,7 +20,7 @@ import { Modal } from "@/components/ui/modal";
 interface CompletionModalProps {
   activity: StudyActivity;
   onClose: () => void;
-  onComplete: (result: ActivityResult) => void;
+  onComplete: (result: ActivityResult) => Promise<void> | void;
   open: boolean;
 }
 
@@ -43,6 +44,9 @@ export function CompletionModal({ activity, onClose, onComplete, open }: Complet
   const [reasons, setReasons] = useState<ErrorReason[]>([]);
   const [notes, setNotes] = useState("");
   const [validationMessage, setValidationMessage] = useState("");
+  const [showErrorDetails, setShowErrorDetails] = useState(false);
+  const [errorDetails, setErrorDetails] = useState<ActivityErrorDetailInput[]>([]);
+  const [saving, setSaving] = useState(false);
 
   const accuracy = useMemo(
     () => (questionsAnswered > 0 ? Math.round((correctAnswers / questionsAnswered) * 100) : 0),
@@ -62,16 +66,16 @@ export function CompletionModal({ activity, onClose, onComplete, open }: Complet
     setWrongAnswers(Math.max(0, questionsAnswered - correct));
   }
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (isStudy) {
       if (actualMinutes < 1) return;
-      onComplete({
-        actualMinutes,
-        studyMethods: methods,
-        perceivedDifficulty: difficulty,
-        notes: notes.trim() || undefined,
-      });
+      setSaving(true);
+      try {
+        await onComplete({ actualMinutes, studyMethods: methods, perceivedDifficulty: difficulty, notes: notes.trim() || undefined });
+      } catch (caughtError) {
+        setValidationMessage(caughtError instanceof Error ? caughtError.message : "Não foi possível salvar o resultado.");
+      } finally { setSaving(false); }
       return;
     }
 
@@ -79,15 +83,40 @@ export function CompletionModal({ activity, onClose, onComplete, open }: Complet
       setValidationMessage("Acertos e erros precisam somar o total respondido.");
       return;
     }
-    onComplete({
-      questionsAnswered,
-      correctAnswers,
-      wrongAnswers,
-      accuracy,
-      perceivedDifficulty: difficulty,
-      errorReasons: reasons,
-      notes: notes.trim() || undefined,
-    });
+    const validDetails = errorDetails.filter((detail) => detail.topicText.trim() && detail.errorCount > 0);
+    if (validDetails.reduce((sum, detail) => sum + detail.errorCount, 0) > wrongAnswers) {
+      setValidationMessage("A soma dos erros detalhados não pode ultrapassar o total de erros.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onComplete({
+        questionsAnswered,
+        correctAnswers,
+        wrongAnswers,
+        accuracy,
+        perceivedDifficulty: difficulty,
+        errorReasons: reasons,
+        errorDetails: validDetails,
+        notes: notes.trim() || undefined,
+      });
+    } catch (caughtError) {
+      setValidationMessage(caughtError instanceof Error ? caughtError.message : "Não foi possível salvar o resultado.");
+    } finally { setSaving(false); }
+  }
+
+  function addErrorDetail() {
+    setShowErrorDetails(true);
+    setErrorDetails((current) => [...current, {
+      topicId: activity.topicId,
+      topicText: activity.topic,
+      errorCount: 1,
+      errorReason: "did_not_know",
+    }]);
+  }
+
+  function updateErrorDetail(index: number, updates: Partial<ActivityErrorDetailInput>) {
+    setErrorDetails((current) => current.map((detail, itemIndex) => itemIndex === index ? { ...detail, ...updates } : detail));
   }
 
   return (
@@ -129,6 +158,27 @@ export function CompletionModal({ activity, onClose, onComplete, open }: Complet
                   </button>
                 ))}
               </div>
+            </div>
+
+            <div className="error-details-section">
+              <button className="button button--ghost button--small" onClick={() => setShowErrorDetails((current) => !current)} type="button">
+                {showErrorDetails ? "Ocultar detalhes" : "Detalhar erros"}
+              </button>
+              {showErrorDetails ? (
+                <div className="error-detail-list">
+                  <div className="error-detail-heading"><div><strong>O que foi errado?</strong><span>Opcional — detalhe apenas o que for útil.</span></div><button className="button button--ghost button--small" onClick={addErrorDetail} type="button"><Plus size={15} /> Adicionar tema</button></div>
+                  {errorDetails.map((detail, index) => (
+                    <div className="error-detail-row" key={index}>
+                      <label className="field"><span>Tema</span><input onChange={(event) => updateErrorDetail(index, { topicText: event.target.value, topicId: event.target.value === activity.topic ? activity.topicId : undefined })} value={detail.topicText} /></label>
+                      <label className="field"><span>Subtema</span><input onChange={(event) => updateErrorDetail(index, { subtopicText: event.target.value })} placeholder="Opcional" value={detail.subtopicText ?? ""} /></label>
+                      <label className="field"><span>Quantidade</span><input min="1" onChange={(event) => updateErrorDetail(index, { errorCount: Number(event.target.value) })} type="number" value={detail.errorCount} /></label>
+                      <label className="field"><span>Motivo</span><select onChange={(event) => updateErrorDetail(index, { errorReason: event.target.value as ErrorReason })} value={detail.errorReason}>{errorReasons.map((reason) => <option key={reason} value={reason}>{errorReasonLabels[reason]}</option>)}</select></label>
+                      <button aria-label="Remover detalhe" className="icon-button icon-button--danger" onClick={() => setErrorDetails((current) => current.filter((_, itemIndex) => itemIndex !== index))} type="button"><Trash2 size={15} /></button>
+                    </div>
+                  ))}
+                  {!errorDetails.length ? <p className="no-data-copy">Nenhum tema detalhado.</p> : null}
+                </div>
+              ) : null}
             </div>
           </>
         ) : (
@@ -207,9 +257,9 @@ export function CompletionModal({ activity, onClose, onComplete, open }: Complet
 
         <footer className="form-footer">
           <button className="button button--ghost" onClick={onClose} type="button">Cancelar</button>
-          <button className="button button--primary" type="submit">
+          <button className="button button--primary" disabled={saving} type="submit">
             <CheckCircle2 size={17} />
-            {isStudy ? "Finalizar estudo" : "Finalizar exercícios"}
+            {saving ? "Salvando…" : isStudy ? "Finalizar estudo" : "Finalizar exercícios"}
           </button>
         </footer>
       </form>

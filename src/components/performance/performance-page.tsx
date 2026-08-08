@@ -1,9 +1,10 @@
-import { CheckCircle2, Clock3, ListChecks, Target, XCircle } from "lucide-react";
-import type { StudyActivity, StudySubject } from "@/types/activity";
+import { AlertTriangle, CheckCircle2, Clock3, ListChecks, Target, XCircle } from "lucide-react";
+import type { QuestionAttemptSummary, StudyActivity, StudySubject } from "@/types/activity";
 import { PageHeading } from "@/components/ui/page-heading";
 
 interface PerformancePageProps {
   activities: StudyActivity[];
+  attemptSummaries: QuestionAttemptSummary[];
   subjects: StudySubject[];
 }
 
@@ -16,7 +17,7 @@ interface SubjectMetrics {
   completed: number;
 }
 
-export function PerformancePage({ activities, subjects }: PerformancePageProps) {
+export function PerformancePage({ activities, attemptSummaries, subjects }: PerformancePageProps) {
   const completed = activities.filter((activity) => activity.status === "completed");
   const metrics = new Map<string, SubjectMetrics>();
 
@@ -34,9 +35,16 @@ export function PerformancePage({ activities, subjects }: PerformancePageProps) 
     current.completed += 1;
     metrics.set(activity.subject, current);
   }
+  for (const attempt of attemptSummaries.filter((item) => !item.activityId)) {
+    const current = metrics.get(attempt.subject) ?? { name: attempt.subject, answered: 0, correct: 0, wrong: 0, minutes: 0, completed: 0 };
+    current.answered += 1;
+    current.correct += attempt.correct ? 1 : 0;
+    current.wrong += attempt.correct ? 0 : 1;
+    metrics.set(attempt.subject, current);
+  }
 
   const subjectMetrics = [...metrics.values()]
-    .filter((item) => item.completed > 0)
+    .filter((item) => item.completed > 0 || item.answered > 0)
     .sort((a, b) => {
       const accuracyA = a.answered ? a.correct / a.answered : -1;
       const accuracyB = b.answered ? b.correct / b.answered : -1;
@@ -52,6 +60,18 @@ export function PerformancePage({ activities, subjects }: PerformancePageProps) 
     { answered: 0, correct: 0, wrong: 0, minutes: 0 },
   );
   const overallAccuracy = totals.answered ? Math.round((totals.correct / totals.answered) * 100) : 0;
+  const topicErrors = new Map<string, number>();
+  for (const activity of completed) {
+    for (const detail of activity.result?.errorDetails ?? []) {
+      const key = `${activity.subject} · ${detail.topicText}${detail.subtopicText ? ` · ${detail.subtopicText}` : ""}`;
+      topicErrors.set(key, (topicErrors.get(key) ?? 0) + detail.errorCount);
+    }
+  }
+  for (const attempt of attemptSummaries.filter((item) => !item.correct && !item.activityId)) {
+    const key = `${attempt.subject}${attempt.topic ? ` · ${attempt.topic}` : ""}`;
+    topicErrors.set(key, (topicErrors.get(key) ?? 0) + 1);
+  }
+  const rankedErrors = [...topicErrors.entries()].sort((a, b) => b[1] - a[1]);
 
   return (
     <div className="standard-page performance-page">
@@ -96,6 +116,13 @@ export function PerformancePage({ activities, subjects }: PerformancePageProps) 
               </div>
             );
           }) : <p className="no-data-copy">Conclua uma atividade para começar a acompanhar seu desempenho.</p>}
+        </div>
+      </section>
+
+      <section className="subject-performance panel-section">
+        <div className="panel-section__heading"><div><h2>Erros por tema</h2><p>Detalhes manuais e respostas do banco de questões.</p></div><span><AlertTriangle size={15} /> {rankedErrors.reduce((sum, [, count]) => sum + count, 0)} erros</span></div>
+        <div className="topic-error-ranking">
+          {rankedErrors.length ? rankedErrors.map(([label, count]) => <div key={label}><span>{label}</span><strong>{count}</strong></div>) : <p className="no-data-copy">Nenhum erro detalhado registrado.</p>}
         </div>
       </section>
     </div>
