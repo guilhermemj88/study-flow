@@ -3,22 +3,32 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --hostname 127.0.0.1",
+    "dev:all": "node scripts/dev-all.mjs",
+    "db:init": "tsx scripts/init-db.ts",
+    "mcp:dev": "tsx watch mcp/server.ts",
+    "mcp:start": "tsx mcp/server.ts",
+    "mcp:inspect": "npx @modelcontextprotocol/inspector http://127.0.0.1:3333/mcp",
+    "mcp:tunnel": "cloudflared tunnel --url http://127.0.0.1:3333",
     "build": "next build",
-    "start": "next start",
+    "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@supabase/ssr": "^0.12.4",
-    "@supabase/supabase-js": "^2.112.2",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@next/env": "16.3.0",
+    "better-sqlite3": "^13.0.3",
     "lucide-react": "1.30.0",
     "next": "16.3.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/express": "^5.0.6",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",

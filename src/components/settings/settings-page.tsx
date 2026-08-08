@@ -1,6 +1,6 @@
 "use client";
 
-import { Database, LogOut, ShieldCheck, UserRound } from "lucide-react";
+import { Cable, Database, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/components/ui/page-heading";
 
 interface SettingsPageProps {
@@ -14,7 +14,7 @@ interface SettingsPageProps {
 export function SettingsPage({ activityCount, subjectCount, email, planName, onLogout }: SettingsPageProps) {
   return (
     <div className="standard-page settings-page">
-      <PageHeading description="Conta, privacidade e dados sincronizados do Study Flow." eyebrow="Aplicativo" title="Configurações" />
+      <PageHeading description="Conta, armazenamento local e conexão MCP do Study Flow." eyebrow="Aplicativo" title="Configurações" />
 
       <section className="settings-panel">
         <div className="settings-row">
@@ -25,12 +25,17 @@ export function SettingsPage({ activityCount, subjectCount, email, planName, onL
         <div className="settings-row">
           <span className="settings-icon"><Database size={19} /></span>
           <div><strong>{planName ?? "Plano ativo"}</strong><p>{activityCount} atividades e {subjectCount} matérias cadastradas.</p></div>
-          <span className="local-badge">Supabase</span>
+          <span className="local-badge">SQLite local</span>
         </div>
         <div className="settings-row">
           <span className="settings-icon"><ShieldCheck size={19} /></span>
-          <div><strong>Dados privados</strong><p>O banco e os arquivos aplicam isolamento por usuário com Row Level Security.</p></div>
+          <div><strong>Dados privados</strong><p>Banco e uploads permanecem neste computador, isolados pelo usuário autenticado.</p></div>
           <span className="settings-state">Protegido</span>
+        </div>
+        <div className="settings-row">
+          <span className="settings-icon"><Cable size={19} /></span>
+          <div><strong>ChatGPT Business via MCP</strong><p>Somente o servidor MCP pode ser exposto por HTTPS; o app e o SQLite continuam locais.</p></div>
+          <span className="settings-state">OAuth 2.1</span>
         </div>
       </section>
 

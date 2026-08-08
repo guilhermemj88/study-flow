@@ -3,18 +3,17 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
-import { ArrowRight, CheckCircle2, LockKeyhole, Mail, Sparkles, UserRound } from "lucide-react";
+import { ArrowRight, LockKeyhole, Mail, Sparkles, UserRound } from "lucide-react";
 import { signIn, signUp } from "@/lib/auth/auth-service";
-import { getSupabaseConfig } from "@/lib/supabase/config";
 
 interface AuthPageProps {
   mode: "login" | "signup";
 }
 function friendlyAuthError(message: string) {
   const normalized = message.toLowerCase();
-  if (normalized.includes("invalid login credentials")) return "E-mail ou senha incorretos.";
-  if (normalized.includes("user already registered")) return "Este e-mail já possui uma conta.";
-  if (normalized.includes("password")) return "A senha não atende aos requisitos de segurança.";
+  if (normalized.includes("invalid login credentials") || normalized.includes("e-mail ou senha incorretos")) return "E-mail ou senha incorretos.";
+  if (normalized.includes("user already registered") || normalized.includes("já possui uma conta")) return "Este e-mail já possui uma conta.";
+  if (normalized.includes("password") || normalized.includes("senha")) return "A senha não atende aos requisitos de segurança.";
   if (normalized.includes("rate limit")) return "Muitas tentativas. Aguarde um pouco e tente novamente.";
   return "Não foi possível concluir. Revise os dados e tente novamente.";
 }
@@ -22,20 +21,17 @@ function friendlyAuthError(message: string) {
 export function AuthPage({ mode }: AuthPageProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const configured = Boolean(getSupabaseConfig());
   const isLogin = mode === "login";
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!configured || submitting) return;
+    if (submitting) return;
     setError("");
-    setMessage("");
     setSubmitting(true);
 
     try {
@@ -52,14 +48,10 @@ export function AuthPage({ mode }: AuthPageProps) {
           displayName: displayName.trim(),
           email: email.trim(),
           password,
-          emailRedirectTo: `${window.location.origin}/auth/callback`,
         });
-        if (result.needsEmailConfirmation) {
-          setMessage("Conta criada. Abra o e-mail de confirmação para entrar no Study Flow.");
-        } else {
-          router.replace("/hoje");
-          router.refresh();
-        }
+        void result;
+        router.replace("/hoje");
+        router.refresh();
       }
     } catch (caughtError) {
       setError(friendlyAuthError(caughtError instanceof Error ? caughtError.message : ""));
@@ -80,7 +72,7 @@ export function AuthPage({ mode }: AuthPageProps) {
           <h1>Organize o estudo.<br />Mantenha o fluxo.</h1>
           <p>Calendário, fontes oficiais e desempenho em um único lugar — privado para cada usuário.</p>
         </div>
-        <div className="auth-security-note"><LockKeyhole size={16} /><span>Dados isolados por conta com Row Level Security</span></div>
+        <div className="auth-security-note"><LockKeyhole size={16} /><span>SQLite e arquivos privados permanecem neste computador</span></div>
       </section>
 
       <section className="auth-form-wrap">
@@ -90,13 +82,6 @@ export function AuthPage({ mode }: AuthPageProps) {
             <h2>{isLogin ? "Boas-vindas de volta" : "Crie sua conta"}</h2>
             <p>{isLogin ? "Entre para continuar seu plano de estudos." : "Comece com um plano privado e organizado."}</p>
           </header>
-
-          {!configured ? (
-            <div className="auth-setup-warning">
-              <strong>Supabase ainda não configurado</strong>
-              <p>Crie o arquivo <code>.env.local</code> a partir de <code>.env.example</code>. O passo a passo está em <code>docs/SUPABASE_SETUP.md</code>.</p>
-            </div>
-          ) : null}
 
           <form onSubmit={handleSubmit}>
             {!isLogin ? (
@@ -115,9 +100,7 @@ export function AuthPage({ mode }: AuthPageProps) {
             </label>
 
             {error ? <p className="auth-message auth-message--error">{error}</p> : null}
-            {message ? <p className="auth-message auth-message--success"><CheckCircle2 size={16} />{message}</p> : null}
-
-            <button className="button button--primary auth-submit" disabled={!configured || submitting} type="submit">
+            <button className="button button--primary auth-submit" disabled={submitting} type="submit">
               {submitting ? "Aguarde…" : isLogin ? "Entrar" : "Criar conta"}
               {!submitting ? <ArrowRight size={17} /> : null}
             </button>

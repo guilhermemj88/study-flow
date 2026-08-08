@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { User } from "@supabase/supabase-js";
-import { getSupabaseConfig } from "@/lib/supabase/config";
+import type { LocalAuthUser } from "@/types/auth";
 import { getCurrentUser } from "@/lib/auth/auth-service";
 
 export function useAuthUser() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<LocalAuthUser | null>(null);
 
   useEffect(() => {
-    if (!getSupabaseConfig()) return;
     let active = true;
     void getCurrentUser().then((currentUser) => {
       if (active) setUser(currentUser);

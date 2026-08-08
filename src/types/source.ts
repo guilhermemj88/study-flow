@@ -32,6 +32,7 @@ export interface StudySource {
   originalFilename?: string;
   mimeType?: string;
   fileSize?: number;
+  sourceUrl?: string;
   analysisStatus: AnalysisStatus;
   createdAt: string;
   updatedAt: string;

@@ -1,12 +1,21 @@
-import type { NextRequest } from "next/server";
-import { updateSession } from "@/lib/supabase/proxy";
+import { NextResponse, type NextRequest } from "next/server";
+import { SESSION_COOKIE } from "@/lib/auth/constants";
 
-export async function proxy(request: NextRequest) {
-  return updateSession(request);
+const PUBLIC_ROUTES = ["/login", "/cadastro"];
+
+export function proxy(request: NextRequest) {
+  const pathname = request.nextUrl.pathname;
+  const isPublic = PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`));
+  const hasSession = Boolean(request.cookies.get(SESSION_COOKIE)?.value);
+  if (!hasSession && !isPublic) {
+    const login = request.nextUrl.clone();
+    login.pathname = "/login";
+    login.searchParams.set("next", pathname);
+    return NextResponse.redirect(login);
+  }
+  return NextResponse.next();
 }
 
 export const config = {
-  matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

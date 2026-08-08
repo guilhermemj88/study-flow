@@ -1,47 +1,57 @@
 # Study Flow
 
-Aplicação web para planejamento de estudos com calendário, fontes oficiais, banco de questões e desempenho persistente. A fase 2 preserva o dark theme e os fluxos do MVP, substituindo o `localStorage` por dados privados no Supabase.
+Aplicação local para planejamento de estudos, provas, editais, questões, incidência, calendário e desempenho. O ChatGPT Business acessa os dados pelo servidor MCP do projeto; não há OpenAI API, Supabase ou banco externo.
 
-## Funcionalidades
+## Arquitetura
 
-- autenticação por e-mail e senha, sessão persistente e rotas protegidas;
-- calendário responsivo com criação, conclusão, edição, reagendamento e exclusão de atividades;
-- matérias, assuntos e plano ativo persistidos por usuário;
-- biblioteca de provas, editais e outras fontes, com upload privado de PDF/imagem;
-- seleção independente das fontes usadas para incidência e para questões;
-- cadastro manual de questões, filtros e sessões de exercício persistentes;
-- seleção determinística: nunca respondidas, erradas e depois as demais;
-- registro opcional do tema, subtema e motivo dos erros;
-- desempenho consolidado a partir de atividades e tentativas salvas no banco;
-- incidência por fonte editável manualmente, sempre acompanhada de sua base.
+```text
+ChatGPT Business ── MCP HTTPS + OAuth 2.1/PKCE ──► servidor MCP local
+                                                          │
+Next.js local ────────────────────────────────────────────┤
+                                                          ▼
+                                               SQLite + uploads locais
+```
 
-IA, análise automática, servidor MCP, pagamentos e recursos sociais não fazem parte desta fase. A arquitetura futura do MCP está apenas documentada.
+O Next.js e o MCP compartilham stores que sempre recebem o usuário autenticado. O navegador usa uma sessão local HttpOnly; o ChatGPT usa tokens OAuth opacos. Apenas a porta do MCP é encaminhada pelo túnel HTTPS.
 
-## Stack
-
-- Next.js 16, App Router e Proxy
-- React 19 e TypeScript estrito
-- Tailwind CSS 4
-- Supabase Auth, PostgreSQL e Storage
-- `@supabase/ssr` e `@supabase/supabase-js`
-- Lucide React
-
-## Configuração
+## Executar
 
 Pré-requisito: Node.js 20.9 ou superior.
 
-1. Siga [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md).
-2. Crie `.env.local` a partir de `.env.example`.
-3. Instale e execute:
-
 ```bash
 npm install
-npm run dev
+copy .env.example .env.local
+npm run db:init
+npm run dev:all
 ```
 
-Abra [http://localhost:3000](http://localhost:3000). Sem as variáveis do Supabase, o build continua válido e a tela de login explica a configuração pendente; as áreas autenticadas não ficam acessíveis.
+- Study Flow: [http://localhost:3000](http://localhost:3000)
+- saúde do MCP: [http://127.0.0.1:3333/health](http://127.0.0.1:3333/health)
+- endpoint MCP: `http://127.0.0.1:3333/mcp`
 
-Comandos de validação:
+Crie uma conta no Study Flow antes de autorizar o conector. Para publicar o MCP por HTTPS e conectá-lo ao ChatGPT Business, siga [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
+
+## Funcionalidades
+
+- conta e sessão locais por usuário;
+- calendário, matérias, assuntos, atividades e resultados;
+- provas, editais e outras fontes, inclusive upload local de PDF/imagem;
+- banco de questões, sessões de exercício e classificação de erros;
+- incidência e desempenho;
+- MCP Streamable HTTP com leitura e gravação de fontes, análises, questões, incidência, calendário e desempenho;
+- OAuth 2.1 com Dynamic Client Registration, PKCE S256, access/refresh tokens e auditoria das ferramentas MCP.
+
+## Stack e persistência
+
+- Next.js 16, React 19 e TypeScript estrito;
+- SQLite com `better-sqlite3` e migrations SQL em `db/migrations/`;
+- SDK MCP TypeScript e Zod;
+- arquivos em `data/uploads/<user-id>/sources/<source-id>/`;
+- banco em `data/study-flow.sqlite` por padrão.
+
+`data/` é ignorado pelo Git. Faça backup dessa pasta com o app e o MCP desligados.
+
+## Validação
 
 ```bash
 npm test
@@ -49,29 +59,4 @@ npm run lint
 npm run build
 ```
 
-## Estrutura principal
-
-```text
-src/
-├── app/                    # rotas, Proxy e estilos
-├── components/             # UI por domínio
-├── hooks/                  # estado assíncrono e mutações
-├── lib/
-│   ├── auth/               # operações de autenticação
-│   ├── data/               # repositories; a UI não consulta tabelas diretamente
-│   ├── study-engine/       # seleção de questões e extensões adaptativas
-│   └── supabase/           # clientes browser/server e renovação da sessão
-└── types/                  # modelos TypeScript
-supabase/migrations/        # schema, constraints, índices, RLS e Storage
-docs/                       # configuração, testes e desenho do MCP futuro
-```
-
-## Decisões de dados e segurança
-
-O Supabase é a fonte principal; não há persistência de domínio em `localStorage`. Todas as tabelas pessoais possuem `user_id` (o perfil usa o próprio `id` de `auth.users`), RLS para as quatro operações e chaves estrangeiras compostas que impedem relações entre recursos de usuários diferentes.
-
-As alternativas foram normalizadas em `question_alternatives`, em vez de JSONB. Isso permite constraints para rótulo/ordem, exclusão em cascata, evolução independente e políticas de isolamento coerentes com a questão proprietária.
-
-Arquivos ficam no bucket privado `study-sources`, sob `user-id/sources/source-id/`, e são abertos por URL assinada curta. Nenhuma `service_role` key é usada no frontend ou versionada.
-
-Veja também [docs/MCP_ARCHITECTURE.md](docs/MCP_ARCHITECTURE.md) e [docs/TESTING.md](docs/TESTING.md).
+Veja [docs/MCP_ARCHITECTURE.md](docs/MCP_ARCHITECTURE.md) e [docs/TESTING.md](docs/TESTING.md).

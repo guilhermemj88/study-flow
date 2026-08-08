@@ -1,33 +1,34 @@
 # Matriz de testes
 
-## Automatizados e locais
+## Automatizados
 
 ```bash
-npm install
 npm test
 npm run lint
 npm run build
 ```
 
-`npm test` cobre a ordem determinística e a não repetição da seleção inicial de questões. Lint e build verificam todos os componentes, rotas e tipos mesmo sem credenciais.
+Os testes locais cobrem o motor de seleção, migrations SQLite, autenticação, isolamento entre usuários, uploads, OAuth/PKCE e stores usados pela UI e pelo MCP.
 
-## Integração com um projeto Supabase
+## Validação manual local
 
-Estes testes exigem `.env.local`, migration aplicada e acesso ao projeto; não podem ser simulados com credenciais inventadas.
+1. Execute `npm run dev:all`.
+2. Crie dois usuários e confirme que cada um vê apenas seus dados.
+3. Em um usuário, crie matéria, atividade, fonte com PDF, questão e sessão de exercício.
+4. Recarregue o navegador e confirme a persistência.
+5. Confirme `GET http://127.0.0.1:3333/health`.
+6. Confirme que `POST /mcp` sem Bearer retorna `401` e `WWW-Authenticate`.
+7. Execute o fluxo OAuth/PKCE com o MCP Inspector e chame ferramentas de leitura e escrita.
 
-- cadastro, confirmação de e-mail quando habilitada, login, reload da sessão e logout;
-- bloqueio das rotas principais para usuário anônimo;
-- isolamento com dois usuários, inclusive tentativa direta de ler/alterar IDs do outro;
-- upload válido, rejeição de tipo inválido e arquivo acima de 20 MB;
-- abertura por URL assinada e bloqueio do arquivo para outro usuário;
-- criação/edição/remoção de fonte e persistência após reload;
-- seleção individual, selecionar todas e limpar fontes do plano;
-- cadastro manual de questão e alternativas;
-- filtros por fonte, matéria, tema, ano e status;
-- sessão com uma questão por vez, correção, explicação, motivo do erro e resultado final;
-- atividade de banco vinculada ao calendário e atualização do desempenho;
-- conclusão manual com tema/subtema/motivo do erro;
-- incidência manual acompanhada da base;
-- validação visual em 1440 px, 768 px e 390 px.
+## Validação do túnel e ChatGPT Business
 
-Para o teste de dois usuários, siga o procedimento sem `service_role` descrito em [SUPABASE_SETUP.md](SUPABASE_SETUP.md). Registre o resultado e a data no processo de release; não versione e-mails, senhas, tokens ou arquivos privados de teste.
+- a URL pública responde em `/health` por HTTPS;
+- `/.well-known/oauth-protected-resource/mcp` anuncia o recurso público correto;
+- `/mcp` sem token não expõe dados;
+- o conector do ChatGPT abre o login local OAuth e conclui a autorização;
+- `list_sources` retorna apenas o usuário autorizado;
+- `create_activity` e `save_questions` aparecem na UI após recarregar;
+- `get_source_file` permite interpretar um upload local;
+- o SQLite e a porta 3000 não estão publicados.
+
+Não versione e-mails, senhas, tokens OAuth, banco ou arquivos privados usados nos testes.

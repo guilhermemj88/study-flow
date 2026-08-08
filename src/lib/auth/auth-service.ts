@@ -1,37 +1,33 @@
-import type { User } from "@supabase/supabase-js";
-import { createClient } from "@/lib/supabase/client";
+import type { LocalAuthUser } from "@/types/auth";
 
-export interface SignUpInput {
-  displayName: string;
-  email: string;
-  password: string;
-  emailRedirectTo: string;
-}
-export async function signIn(email: string, password: string) {
-  const { error } = await createClient().auth.signInWithPassword({ email, password });
-  if (error) throw error;
-}
-
-export async function signUp(input: SignUpInput): Promise<{ needsEmailConfirmation: boolean }> {
-  const { data, error } = await createClient().auth.signUp({
-    email: input.email,
-    password: input.password,
-    options: {
-      emailRedirectTo: input.emailRedirectTo,
-      data: { display_name: input.displayName },
-    },
+async function authRequest<T>(path: string, body?: unknown): Promise<T> {
+  const response = await fetch(path, {
+    method: body === undefined ? "GET" : "POST",
+    headers: body === undefined ? undefined : { "content-type": "application/json" },
+    body: body === undefined ? undefined : JSON.stringify(body),
   });
-  if (error) throw error;
-  return { needsEmailConfirmation: !data.session };
+  const data = await response.json().catch(() => ({})) as T & { error?: string };
+  if (!response.ok) throw new Error(data.error ?? "Não foi possível concluir a autenticação.");
+  return data;
+}
+
+export async function signIn(email: string, password: string) {
+  await authRequest<{ user: LocalAuthUser }>("/api/auth/login", { email, password });
+}
+
+export async function signUp(input: { displayName: string; email: string; password: string }) {
+  await authRequest<{ user: LocalAuthUser }>("/api/auth/signup", input);
+  return { needsEmailConfirmation: false };
 }
 
 export async function signOut() {
-  const { error } = await createClient().auth.signOut();
-  if (error) throw error;
+  await authRequest<{ success: boolean }>("/api/auth/logout", {});
 }
 
-export async function getCurrentUser(): Promise<User | null> {
-  const { data, error } = await createClient().auth.getUser();
-  if (error) return null;
+export async function getCurrentUser(): Promise<LocalAuthUser | null> {
+  const response = await fetch("/api/auth/me");
+  if (response.status === 401) return null;
+  if (!response.ok) throw new Error("Não foi possível carregar a conta local.");
+  const data = await response.json() as { user: LocalAuthUser };
   return data.user;
 }

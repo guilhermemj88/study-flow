@@ -13,6 +13,9 @@
 # local tooling used only to validate this workspace
 /.tools/
 
+# local database and private uploads
+/data/
+
 # local environment files
 .env*
 !.env.example

@@ -58,7 +58,7 @@ export function AppShell({ children }: AppShellProps) {
         <div className="sidebar-footer">
           <span className="status-dot" />
           <div>
-            <strong>Sincronizado</strong>
+            <strong>SQLite local</strong>
             <small title={user?.email}>{user?.email ?? "Sessão segura"}</small>
           </div>
         </div>
@@ -69,7 +69,7 @@ export function AppShell({ children }: AppShellProps) {
           <span className="brand-mark"><Sparkles size={17} /></span>
           <span>Study Flow</span>
         </Link>
-        <span className="local-badge"><span className="status-dot" /> Online</span>
+        <span className="local-badge"><span className="status-dot" /> Local</span>
       </div>
 
       <main className="main-content">{children}</main>
