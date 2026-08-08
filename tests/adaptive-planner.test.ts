@@ -84,6 +84,41 @@ test("incidência sozinha gera o plano-base sem exercícios respondidos", () => 
   assert.ok(study.load().activities.every((activity) => activity.planningOrigin === "incidence"));
 });
 
+test("tema Geral não domina temas específicos nem gera atividades genéricas", () => {
+  const account = user("Fallback Geral");
+  const sourceId = addSource(account.id, "Prova com fallback", [
+    { subject: "Clínica Médica", topic: "Geral", questionCount: 100, incidencePercentage: 80 },
+    { subject: "Clínica Médica", topic: "Pneumologia", questionCount: 4, incidencePercentage: 16 },
+    { subject: "Clínica Médica", topic: "Infectologia", questionCount: 1, incidencePercentage: 4 },
+  ]);
+  const planner = new LocalPlannerStore(account.id);
+  planner.updateSettings({
+    examDate: "2030-02-28",
+    availability: allDays(60),
+    sessionMinutes: 30,
+    dailyLimitMinutes: 60,
+    firstReviewDays: 1,
+    secondReviewDays: 2,
+    reinforcementDays: 3,
+  });
+
+  const preview = planner.preview({ startDate: "2030-01-01" });
+  const topByIncidence = [...preview.priorities].sort((a, b) => b.incidenceWeight - a.incidenceWeight).slice(0, 4);
+  assert.ok(!preview.priorities.some((item) => item.topic.toLowerCase() === "geral" && !item.subtopic));
+  assert.ok(!topByIncidence.some((item) => item.topic.toLowerCase() === "geral" && !item.subtopic));
+  const pneumologia = preview.priorities.find((item) => item.topic === "Pneumologia")!;
+  const infectologia = preview.priorities.find((item) => item.topic === "Infectologia")!;
+  assert.ok(pneumologia.incidenceWeight > infectologia.incidenceWeight);
+  assert.equal(Math.round(preview.priorities.reduce((sum, item) => sum + item.questionCount, 0)), 105, "questões em Geral continuam contando na incidência da matéria");
+  assert.ok(preview.activities
+    .filter((activity) => ["study", "review", "exercise"].includes(activity.type))
+    .every((activity) => activity.focusLabel.toLowerCase() !== "geral"));
+
+  const persistedGeneral = new LocalSourceStore(account.id).get(sourceId).topicStats
+    .find((item) => item.topicName?.toLowerCase() === "geral");
+  assert.equal(persistedGeneral?.questionCount, 100, "a incidência histórica não deve ser reescrita");
+});
+
 test("desempenho altera pesos somente depois que surge histórico", () => {
   const account = user("Camada Desempenho");
   const sourceId = addSource(account.id, "Prova equilibrada", [

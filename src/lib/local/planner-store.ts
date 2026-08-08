@@ -35,6 +35,15 @@ interface IncidenceRow {
   topic_name: string | null; subtopic_text: string | null; question_count: number; incidence_percentage: number;
 }
 
+interface IncidenceAggregate {
+  subjectId: string; subject: string; topicId: string; topic: string; subtopic?: string;
+  questionCount: number; incidence: number;
+}
+
+interface GenericIncidenceAggregate {
+  subjectId: string; subject: string; topicId?: string; questionCount: number; incidence: number;
+}
+
 interface AttemptRow {
   subject_id: string | null; topic_id: string | null; subtopic_text: string | null;
   correct: number; error_reason: ErrorReason | null; answered_at: string;
@@ -90,6 +99,12 @@ function taxonomyKey(input: { subjectId: string; topicId?: string; subtopic?: st
 
 function stablePart(value?: string) {
   return createHash("sha1").update(value?.trim().toLowerCase() || "-").digest("hex").slice(0, 10);
+}
+
+function isGenericTopic(value?: string | null) {
+  if (!value?.trim()) return true;
+  const normalized = value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim().toLowerCase();
+  return normalized === "geral" || normalized === "general";
 }
 
 function weekdayKey(value: string): keyof WeeklyAvailability {
@@ -195,8 +210,23 @@ export class LocalPlannerStore {
       .get(this.userId, plan.id) as { total: number }).total;
     const persistedQuestionCount = rows.reduce((sum, row) => sum + Math.max(0, row.question_count), 0);
     const analyzedQuestionCount = classifiedQuestionCount || persistedQuestionCount;
-    const aggregated = new Map<string, { subjectId: string; subject: string; topicId: string; topic: string; subtopic?: string; questionCount: number; incidence: number }>();
+    const aggregated = new Map<string, IncidenceAggregate>();
+    const genericBySubject = new Map<string, GenericIncidenceAggregate>();
     for (const row of rows) {
+      const subtopic = row.subtopic_text?.trim() || undefined;
+      if (isGenericTopic(row.topic_name) && !subtopic) {
+        const current = genericBySubject.get(row.subject_id) ?? {
+          subjectId: row.subject_id,
+          subject: row.subject_name,
+          topicId: row.topic_id ?? undefined,
+          questionCount: 0,
+          incidence: 0,
+        };
+        current.questionCount += Math.max(0, row.question_count);
+        current.incidence += Math.max(0, row.incidence_percentage);
+        genericBySubject.set(row.subject_id, current);
+        continue;
+      }
       let topicId = row.topic_id;
       let topic = row.topic_name;
       if (!topicId) {
@@ -204,11 +234,37 @@ export class LocalPlannerStore {
         topicId = ensured.topic.id;
         topic = ensured.topic.name;
       }
-      const key = taxonomyKey({ subjectId: row.subject_id, topicId, subtopic: row.subtopic_text ?? undefined });
-      const current = aggregated.get(key) ?? { subjectId: row.subject_id, subject: row.subject_name, topicId, topic: topic ?? "Geral", subtopic: row.subtopic_text ?? undefined, questionCount: 0, incidence: 0 };
+      const key = taxonomyKey({ subjectId: row.subject_id, topicId, subtopic });
+      const current = aggregated.get(key) ?? { subjectId: row.subject_id, subject: row.subject_name, topicId, topic: topic ?? "Geral", subtopic, questionCount: 0, incidence: 0 };
       current.questionCount += Math.max(0, row.question_count);
       current.incidence += Math.max(0, row.incidence_percentage);
       aggregated.set(key, current);
+    }
+
+    for (const generic of genericBySubject.values()) {
+      const specificItems = [...aggregated.values()].filter((item) => item.subjectId === generic.subjectId);
+      if (specificItems.length) {
+        const specificEvidence = specificItems.map((item) => Math.max(item.questionCount, item.incidence / 100, 0.01));
+        const totalSpecificEvidence = specificEvidence.reduce((sum, value) => sum + value, 0) || 1;
+        specificItems.forEach((item, index) => {
+          const share = specificEvidence[index] / totalSpecificEvidence;
+          item.questionCount += generic.questionCount * share;
+          item.incidence += generic.incidence * share;
+        });
+        continue;
+      }
+      const topic = generic.topicId
+        ? { id: generic.topicId, name: "Geral" }
+        : ensureSubjectAndTopic(this.userId, generic.subject, "Geral").topic;
+      const key = taxonomyKey({ subjectId: generic.subjectId, topicId: topic.id });
+      aggregated.set(key, {
+        subjectId: generic.subjectId,
+        subject: generic.subject,
+        topicId: topic.id,
+        topic: topic.name,
+        questionCount: generic.questionCount,
+        incidence: generic.incidence,
+      });
     }
     const items = [...aggregated.values()];
     const evidence = items.map((item) => Math.max(item.questionCount, item.incidence / 100, 0.01));
