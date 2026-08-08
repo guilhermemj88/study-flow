@@ -18,6 +18,7 @@ export type ErrorReason =
   | "other";
 
 export type ExerciseOrigin = "manual" | "question_bank";
+export type PlanningOrigin = "manual" | "incidence" | "performance";
 
 export interface ActivityErrorDetailInput {
   topicId?: string;
@@ -57,6 +58,15 @@ export interface StudyActivity {
   notes?: string;
   exerciseOrigin?: ExerciseOrigin;
   linkedStudyActivityId?: string;
+  planningOrigin?: PlanningOrigin;
+  focusLabel?: string;
+  subtopic?: string;
+  sequenceKey?: string;
+  sequenceStep?: string;
+  adaptiveReason?: string;
+  plannerErrorReason?: ErrorReason;
+  baseWeight?: number;
+  adaptiveWeight?: number;
   createdAt: string;
   completedAt?: string;
   result?: ActivityResult;

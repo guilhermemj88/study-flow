@@ -19,6 +19,9 @@ interface ActivityRow {
   question_count: number | null; priority: StudyActivity["priority"]; status: StudyActivity["status"];
   exercise_origin: StudyActivity["exerciseOrigin"]; linked_study_activity_id: string | null;
   notes: string | null; completed_at: string | null; created_at: string;
+  planning_origin: StudyActivity["planningOrigin"]; focus_label: string | null; subtopic_text: string | null;
+  sequence_key: string | null; sequence_step: string | null; adaptive_reason: string | null;
+  planner_error_reason: ErrorReason | null; base_weight: number | null; adaptive_weight: number | null;
 }
 interface ResultRow {
   activity_id: string; actual_minutes: number | null; questions_answered: number | null;
@@ -114,6 +117,15 @@ export class LocalStudyStore {
       status: row.status,
       exerciseOrigin: row.exercise_origin ?? "manual",
       linkedStudyActivityId: row.linked_study_activity_id ?? undefined,
+      planningOrigin: row.planning_origin ?? "manual",
+      focusLabel: row.focus_label ?? undefined,
+      subtopic: row.subtopic_text ?? undefined,
+      sequenceKey: row.sequence_key ?? undefined,
+      sequenceStep: row.sequence_step ?? undefined,
+      adaptiveReason: row.adaptive_reason ?? undefined,
+      plannerErrorReason: row.planner_error_reason ?? undefined,
+      baseWeight: row.base_weight ?? undefined,
+      adaptiveWeight: row.adaptive_weight ?? undefined,
       notes: row.notes ?? undefined,
       createdAt: row.created_at,
       completedAt: row.completed_at ?? undefined,

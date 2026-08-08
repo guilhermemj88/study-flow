@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Cable, Database, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/components/ui/page-heading";
 import type { UserRole } from "@/types/auth";
+import { PlanSettingsPanel } from "@/components/planner/plan-settings-panel";
 
 interface SettingsPageProps {
   activityCount: number;
@@ -49,6 +50,8 @@ export function SettingsPage({ activityCount, subjectCount, email, planName, rol
           </div>
         )}
       </section>
+
+      <PlanSettingsPanel />
 
       <section className="danger-zone">
         <div><span className="settings-icon settings-icon--warning"><LogOut size={19} /></span><div><strong>Encerrar sessão</strong><p>Seus dados permanecem salvos para o próximo acesso.</p></div></div>

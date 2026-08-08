@@ -4,6 +4,7 @@ import { getDatabase, newId, nowIso } from "@/lib/local/database";
 import { LocalQuestionStore } from "@/lib/local/question-store";
 import { LocalSourceStore } from "@/lib/local/source-store";
 import { LocalStudyStore } from "@/lib/local/study-store";
+import { LocalPlannerStore } from "@/lib/local/planner-store";
 import type { ActivityDraft, StudyActivity } from "@/types/activity";
 
 const sourceType = z.enum(["exam", "edital", "other"]);
@@ -39,6 +40,7 @@ export function createStudyFlowMcpServer(userId: string, scopes: string[]) {
   const study = new LocalStudyStore(userId);
   const sources = new LocalSourceStore(userId);
   const questions = new LocalQuestionStore(userId);
+  const planner = new LocalPlannerStore(userId);
   const canWrite = scopes.includes("studyflow:write");
   const requireWrite = () => { if (!canWrite) throw new Error("O token não possui o escopo studyflow:write."); };
 
@@ -85,6 +87,61 @@ export function createStudyFlowMcpServer(userId: string, scopes: string[]) {
   server.registerTool("get_plan_sources", {
     title: "Consultar fontes do plano", description: "Retorna fontes habilitadas para incidência e banco de questões no plano ativo.", inputSchema: {}, annotations: annotations.read,
   }, () => execute(userId, "get_plan_sources", () => { const data = sources.load(); return { activePlan: data.activePlan ?? null, sources: data.sources.filter((item) => item.planSelection) }; }));
+
+  server.registerTool("get_plan_settings", {
+    title: "Consultar preferências do plano",
+    description: "Retorna prova, disponibilidade semanal, duração das sessões e espaçamento do plano adaptativo.",
+    inputSchema: {}, annotations: annotations.read,
+  }, () => execute(userId, "get_plan_settings", () => ({ settings: planner.getSettings() })));
+
+  const availabilitySchema = z.object({
+    mon: z.number().int().min(0).max(720).optional(), tue: z.number().int().min(0).max(720).optional(),
+    wed: z.number().int().min(0).max(720).optional(), thu: z.number().int().min(0).max(720).optional(),
+    fri: z.number().int().min(0).max(720).optional(), sat: z.number().int().min(0).max(720).optional(),
+    sun: z.number().int().min(0).max(720).optional(),
+  });
+  server.registerTool("update_plan_settings", {
+    title: "Atualizar preferências do plano",
+    description: "Atualiza data da prova, disponibilidade, sessões, revisões, reforço e quantidade de exercícios.",
+    inputSchema: {
+      examDate: z.union([date, z.literal("")]).optional(), availability: availabilitySchema.optional(),
+      sessionMinutes: z.union([z.literal(30), z.literal(45), z.literal(60), z.literal(90)]).optional(),
+      dailyLimitMinutes: z.number().int().min(30).max(720).optional(),
+      firstReviewDays: z.number().int().min(1).optional(), secondReviewDays: z.number().int().min(2).optional(),
+      reinforcementDays: z.number().int().min(3).optional(),
+      exerciseQuestions: z.union([z.literal(10), z.literal(20), z.literal(30), z.literal(50)]).optional(),
+    }, annotations: annotations.update,
+  }, (input) => execute(userId, "update_plan_settings", () => { requireWrite(); return { settings: planner.updateSettings(input) }; }));
+
+  server.registerTool("preview_study_plan", {
+    title: "Visualizar plano de estudos",
+    description: "Calcula uma prévia sem gravar atividades, usando incidência, desempenho e disponibilidade.",
+    inputSchema: { startDate: date.optional() }, annotations: annotations.read,
+  }, ({ startDate }) => execute(userId, "preview_study_plan", () => ({ preview: planner.preview({ startDate }) })));
+
+  server.registerTool("generate_study_plan", {
+    title: "Gerar plano de estudos",
+    description: "Gera e grava o plano inicial após confirmação explícita do usuário.",
+    inputSchema: { startDate: date.optional() }, annotations: annotations.write,
+  }, ({ startDate }) => execute(userId, "generate_study_plan", () => { requireWrite(); return { result: planner.generateStudyPlan({ startDate }) }; }));
+
+  server.registerTool("recalculate_future_plan", {
+    title: "Recalcular plano futuro",
+    description: "Recalcula somente atividades futuras, preservando concluídas e atualizando sequências equivalentes sem duplicar.",
+    inputSchema: { startDate: date.optional() }, annotations: annotations.update,
+  }, ({ startDate }) => execute(userId, "recalculate_future_plan", () => { requireWrite(); return { result: planner.recalculateFuturePlan({ startDate }) }; }));
+
+  server.registerTool("get_priority_topics", {
+    title: "Consultar prioridades adaptativas",
+    description: "Retorna matérias, temas e subtemas ponderados por incidência, desempenho, motivo do erro e recência.",
+    inputSchema: {}, annotations: annotations.read,
+  }, () => execute(userId, "get_priority_topics", () => ({ priorities: planner.getPriorityTopics() })));
+
+  server.registerTool("get_review_recommendations", {
+    title: "Consultar recomendações de revisão",
+    description: "Sugere revisões, exercícios ou reforços com explicação da prioridade atual.",
+    inputSchema: { limit: z.number().int().min(1).max(50).default(10) }, annotations: annotations.read,
+  }, ({ limit }) => execute(userId, "get_review_recommendations", () => ({ recommendations: planner.getReviewRecommendations(limit) })));
 
   server.registerTool("list_questions", {
     title: "Consultar questões", description: "Lista questões locais e permite filtrar por fonte, matéria, tema, ano ou status de resposta.",
@@ -138,11 +195,11 @@ export function createStudyFlowMcpServer(userId: string, scopes: string[]) {
   };
   server.registerTool("save_incidence", {
     title: "Salvar incidência", description: "Salva a incidência calculada por matéria, tema e subtema para uma fonte.", inputSchema: incidenceSchema, annotations: annotations.update,
-  }, ({ sourceId, items, replace }) => execute(userId, "save_incidence", () => { requireWrite(); sources.saveTopicsByName(sourceId, items, replace); return { sourceId, savedItems: items.length }; }, sourceId));
+  }, ({ sourceId, items, replace }) => execute(userId, "save_incidence", () => { requireWrite(); sources.saveTopicsByName(sourceId, items, replace); return { sourceId, savedItems: items.length, planRefreshAvailable: planner.hasGeneratedPlan() }; }, sourceId));
 
   server.registerTool("save_source_topics", {
     title: "Classificar temas de uma fonte", description: "Salva matérias, temas e subtemas identificados em uma prova ou edital, com contagens e incidência.", inputSchema: incidenceSchema, annotations: annotations.update,
-  }, ({ sourceId, items, replace }) => execute(userId, "save_source_topics", () => { requireWrite(); sources.saveTopicsByName(sourceId, items, replace); return { sourceId, savedItems: items.length }; }, sourceId));
+  }, ({ sourceId, items, replace }) => execute(userId, "save_source_topics", () => { requireWrite(); sources.saveTopicsByName(sourceId, items, replace); return { sourceId, savedItems: items.length, planRefreshAvailable: planner.hasGeneratedPlan() }; }, sourceId));
 
   server.registerTool("save_questions", {
     title: "Salvar questões classificadas", description: "Salva questões interpretadas pelo ChatGPT com matéria, tema, subtema, alternativas, gabarito e explicação.",

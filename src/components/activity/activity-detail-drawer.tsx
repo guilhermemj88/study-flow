@@ -55,7 +55,7 @@ export function ActivityDetailDrawer({
   return (
     <div className="drawer-backdrop" role="presentation" onMouseDown={onClose}>
       <aside
-        aria-label={`Detalhes de ${activity.topic}`}
+        aria-label={`Detalhes de ${activity.focusLabel ?? activity.topic}`}
         aria-modal="true"
         className="activity-drawer"
         onMouseDown={(event) => event.stopPropagation()}
@@ -67,7 +67,7 @@ export function ActivityDetailDrawer({
           </div>
           <div className="drawer-title">
             <span>{activity.subject}</span>
-            <h2>{activity.topic}</h2>
+            <h2>{activity.focusLabel ?? activity.topic}</h2>
           </div>
           <button aria-label="Fechar detalhes" className="icon-button" onClick={onClose} type="button">
             <X size={19} />
@@ -90,6 +90,19 @@ export function ActivityDetailDrawer({
               <div><dt>Prioridade</dt><dd><span className={`priority-pill priority-${activity.priority}`}>{priorityLabels[activity.priority]}</span></dd></div>
             </dl>
           </section>
+
+          {activity.planningOrigin && activity.planningOrigin !== "manual" ? (
+            <section className="detail-section planner-detail">
+              <h3>Plano adaptativo</h3>
+              <dl className="detail-list">
+                <div><dt>Origem</dt><dd>{activity.planningOrigin === "performance" ? "Erro em exercício" : "Incidência nas provas"}</dd></div>
+                <div><dt>Tema</dt><dd>{activity.topic}</dd></div>
+                {activity.subtopic ? <div><dt>Subtema</dt><dd>{activity.subtopic}</dd></div> : null}
+                {activity.plannerErrorReason ? <div><dt>Motivo do reforço</dt><dd>{errorReasonLabels[activity.plannerErrorReason]}</dd></div> : null}
+                {activity.adaptiveReason ? <div><dt>Recomendação</dt><dd>{activity.adaptiveReason}</dd></div> : null}
+              </dl>
+            </section>
+          ) : null}
 
           {activity.notes ? (
             <section className="detail-section">

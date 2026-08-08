@@ -2,9 +2,11 @@ import { requireRequestUser } from "@/lib/auth/server-session";
 import { LocalQuestionStore } from "@/lib/local/question-store";
 import { LocalSourceStore } from "@/lib/local/source-store";
 import { LocalStudyStore } from "@/lib/local/study-store";
+import { LocalPlannerStore } from "@/lib/local/planner-store";
 import type { ActivityDraft, ActivityResult, StudyActivity, StudySubject } from "@/types/activity";
 import type { QuestionDraft, QuestionFilters } from "@/types/question";
 import type { SourceDraft } from "@/types/source";
+import type { PlanSettingsUpdate } from "@/types/planner";
 
 export const runtime = "nodejs";
 
@@ -32,6 +34,7 @@ export async function GET(request: Request, context: RouteContext) {
     const study = new LocalStudyStore(user.id);
     const sources = new LocalSourceStore(user.id);
     const questions = new LocalQuestionStore(user.id);
+    const planner = new LocalPlannerStore(user.id);
     if (path[0] === "study" && path.length === 1) return json(study.load());
     if (path[0] === "sources" && path.length === 1) return json(sources.load());
     if (path[0] === "sources" && path[1] && path[2] === "file") {
@@ -50,6 +53,10 @@ export async function GET(request: Request, context: RouteContext) {
       return json(questions.load(filters, url.searchParams.get("active") !== "false"));
     }
     if (path[0] === "sessions" && path[1] && path.length === 2) return json(questions.getSession(path[1]));
+    if (path[0] === "planner" && path[1] === "settings") return json(planner.getSettings());
+    if (path[0] === "planner" && path[1] === "preview") return json(planner.preview({ startDate: new URL(request.url).searchParams.get("startDate") ?? undefined }));
+    if (path[0] === "planner" && path[1] === "priorities") return json({ priorities: planner.getPriorityTopics() });
+    if (path[0] === "planner" && path[1] === "recommendations") return json({ recommendations: planner.getReviewRecommendations() });
     return json({ error: "Rota não encontrada." }, 404);
   } catch (error) { return failure(error); }
 }
@@ -61,9 +68,14 @@ export async function POST(request: Request, context: RouteContext) {
     const study = new LocalStudyStore(user.id);
     const sources = new LocalSourceStore(user.id);
     const questions = new LocalQuestionStore(user.id);
+    const planner = new LocalPlannerStore(user.id);
     if (path[0] === "activities" && path.length === 1) return json(study.createActivity(await body<ActivityDraft>(request)), 201);
     if (path[0] === "activities" && path[1] && path[2] === "complete") {
-      study.completeActivity(path[1], await body<ActivityResult>(request)); return new Response(null, { status: 204 });
+      study.completeActivity(path[1], await body<ActivityResult>(request));
+      if (planner.hasGeneratedPlan()) {
+        try { planner.recalculateFuturePlan(); } catch (plannerError) { console.error("Falha ao adaptar plano:", plannerError); }
+      }
+      return new Response(null, { status: 204 });
     }
     if (path[0] === "subjects" && path.length === 1) {
       const input = await body<{ name: string }>(request); return json(study.createSubject(input.name), 201);
@@ -90,12 +102,18 @@ export async function POST(request: Request, context: RouteContext) {
       const input = await body<{ nextIndex: number }>(request); questions.advance(path[1], input.nextIndex); return new Response(null, { status: 204 });
     }
     if (path[0] === "sessions" && path[1] && path[2] === "complete") {
-      questions.complete(path[1]); return new Response(null, { status: 204 });
+      questions.complete(path[1]);
+      if (planner.hasGeneratedPlan()) {
+        try { planner.recalculateFuturePlan(); } catch (plannerError) { console.error("Falha ao adaptar plano após exercícios:", plannerError); }
+      }
+      return new Response(null, { status: 204 });
     }
     if (path[0] === "session-error-reason") {
       const input = await body<{ sessionQuestionId: string; attemptId: string; errorReason: Parameters<LocalQuestionStore["setErrorReason"]>[2] }>(request);
       questions.setErrorReason(input.sessionQuestionId, input.attemptId, input.errorReason); return new Response(null, { status: 204 });
     }
+    if (path[0] === "planner" && path[1] === "generate") return json(planner.generateStudyPlan(await body<{ startDate?: string }>(request)), 201);
+    if (path[0] === "planner" && path[1] === "recalculate") return json(planner.recalculateFuturePlan(await body<{ startDate?: string }>(request)));
     return json({ error: "Rota não encontrada." }, 404);
   } catch (error) { return failure(error); }
 }
@@ -126,6 +144,9 @@ export async function PUT(request: Request, context: RouteContext) {
     if (path[0] === "plan-sources" && path.length === 1) {
       const input = await body<{ planId: string; sourceIds: string[]; active: boolean }>(request);
       sources.setAllPlanSources(input.planId, input.sourceIds, input.active); return new Response(null, { status: 204 });
+    }
+    if (path[0] === "planner" && path[1] === "settings") {
+      return json(new LocalPlannerStore(user.id).updateSettings(await body<PlanSettingsUpdate>(request)));
     }
     return json({ error: "Rota não encontrada." }, 404);
   } catch (error) { return failure(error); }

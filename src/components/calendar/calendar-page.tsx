@@ -9,6 +9,7 @@ import {
   Flame,
   Plus,
   RotateCcw,
+  Sparkles,
 } from "lucide-react";
 import {
   addDays,
@@ -22,6 +23,7 @@ import {
 import type { StudyActivity } from "@/types/activity";
 import { ActivityChip } from "@/components/calendar/activity-chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import type { StudyPlanPreview } from "@/types/planner";
 
 const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
@@ -29,6 +31,8 @@ interface CalendarPageProps {
   activities: StudyActivity[];
   onCreateActivity: (date?: string) => void;
   onOpenActivity: (activity: StudyActivity) => void;
+  onOpenPlanner: () => void;
+  plannerPreview?: StudyPlanPreview | null;
 }
 
 function studyStreak(activities: StudyActivity[]): number {
@@ -47,7 +51,7 @@ function studyStreak(activities: StudyActivity[]): number {
   return streak;
 }
 
-export function CalendarPage({ activities, onCreateActivity, onOpenActivity }: CalendarPageProps) {
+export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onOpenPlanner, plannerPreview }: CalendarPageProps) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -98,9 +102,17 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity }: C
         </div>
         <div className="calendar-toolbar__actions">
           <button className="button button--ghost" onClick={() => setCurrentMonth(new Date())} type="button">Hoje</button>
+          <button className="button button--ghost planner-button" onClick={onOpenPlanner} type="button"><Sparkles size={16} /> {plannerPreview?.hasGeneratedPlan ? "Recalcular plano" : "Gerar plano de estudos"}</button>
           <button className="button button--primary" onClick={() => onCreateActivity()} type="button"><Plus size={17} /> Nova atividade</button>
         </div>
       </header>
+
+      {plannerPreview?.incidenceChanged ? (
+        <button className="calendar-incidence-notice" onClick={onOpenPlanner} type="button">
+          <Sparkles size={16} />
+          <span><strong>Novos dados de incidência disponíveis.</strong> Abra a prévia para recalcular apenas as atividades futuras.</span>
+        </button>
+      ) : null}
 
       <section className="kpi-strip" aria-label="Resumo do dia">
         <div className="kpi-item"><span className="kpi-icon kpi-icon--green"><CalendarCheck2 size={17} /></span><div><strong>{todayActivities.length}</strong><span>atividades hoje</span></div></div>

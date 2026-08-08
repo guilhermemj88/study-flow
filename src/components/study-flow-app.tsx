@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useStudyData } from "@/hooks/use-study-data";
 import { processExerciseResult, processStudyResult } from "@/lib/study-engine";
@@ -17,6 +17,9 @@ import { TodayPage } from "@/components/today/today-page";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { signOut } from "@/lib/auth/auth-service";
+import { getStudyRepository } from "@/lib/data/study-repository";
+import { StudyPlanModal } from "@/components/planner/study-plan-modal";
+import type { PriorityTopic, StudyPlanPreview } from "@/types/planner";
 
 export type StudyFlowView = "calendar" | "today" | "performance" | "subjects" | "settings";
 
@@ -40,6 +43,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
     error,
     activePlan,
     attemptSummaries,
+    reload,
     addActivity,
     updateActivity,
     completeActivity,
@@ -51,6 +55,24 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
   const [selectedActivityId, setSelectedActivityId] = useState<string | null>(null);
   const [formState, setFormState] = useState<FormState | null>(null);
   const [completionActivityId, setCompletionActivityId] = useState<string | null>(null);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const [plannerPreview, setPlannerPreview] = useState<StudyPlanPreview | null>(null);
+  const [priorityTopics, setPriorityTopics] = useState<PriorityTopic[]>([]);
+
+  useEffect(() => {
+    if (!isReady || (view !== "calendar" && view !== "today")) return;
+    let active = true;
+    if (view === "calendar") {
+      getStudyRepository().previewStudyPlan().then((preview) => {
+        if (active) setPlannerPreview(preview);
+      }).catch(() => undefined);
+    } else {
+      getStudyRepository().getPriorityTopics().then((priorities) => {
+        if (active) setPriorityTopics(priorities);
+      }).catch(() => undefined);
+    }
+    return () => { active = false; };
+  }, [activities, isReady, view]);
 
   const selectedActivity = useMemo(
     () => activities.find((activity) => activity.id === selectedActivityId) ?? null,
@@ -84,7 +106,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
     if (!isReady) return <LoadingScreen />;
     switch (view) {
       case "today":
-        return <TodayPage activities={activities} onOpenActivity={(activity) => setSelectedActivityId(activity.id)} />;
+        return <TodayPage activities={activities} onOpenActivity={(activity) => setSelectedActivityId(activity.id)} priorityTopics={priorityTopics} />;
       case "performance":
         return <PerformancePage activities={activities} attemptSummaries={attemptSummaries} subjects={subjects} />;
       case "subjects":
@@ -117,6 +139,8 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
             activities={activities}
             onCreateActivity={(date) => setFormState({ initialDate: date })}
             onOpenActivity={(activity) => setSelectedActivityId(activity.id)}
+            onOpenPlanner={() => setPlannerOpen(true)}
+            plannerPreview={plannerPreview}
           />
         );
     }
@@ -193,6 +217,21 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
           open
         />
       ) : null}
+
+      <StudyPlanModal
+        initialPreview={plannerPreview}
+        onApplied={async () => {
+          await reload();
+          const [preview, priorities] = await Promise.all([
+            getStudyRepository().previewStudyPlan(),
+            getStudyRepository().getPriorityTopics(),
+          ]);
+          setPlannerPreview(preview);
+          setPriorityTopics(priorities);
+        }}
+        onClose={() => setPlannerOpen(false)}
+        open={plannerOpen}
+      />
     </AppShell>
   );
 }

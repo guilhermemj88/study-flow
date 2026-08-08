@@ -1,18 +1,20 @@
-import { AlertCircle, ArrowRight, CheckCircle2, Clock3 } from "lucide-react";
-import { activityTypeLabels, getVisualStatus, priorityLabels } from "@/lib/activity-meta";
+import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Sparkles, TrendingUp } from "lucide-react";
+import { activityTypeLabels, errorReasonLabels, getVisualStatus, priorityLabels } from "@/lib/activity-meta";
 import { daysBetween, toDateKey } from "@/lib/date-utils";
 import type { StudyActivity } from "@/types/activity";
 import { ActivityTypeIcon } from "@/components/activity/activity-type-icon";
 import { getActivityMeasure } from "@/components/calendar/activity-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import { PageHeading } from "@/components/ui/page-heading";
+import type { PriorityTopic } from "@/types/planner";
 
 interface TodayPageProps {
   activities: StudyActivity[];
   onOpenActivity: (activity: StudyActivity) => void;
+  priorityTopics?: PriorityTopic[];
 }
 
-export function TodayPage({ activities, onOpenActivity }: TodayPageProps) {
+export function TodayPage({ activities, onOpenActivity, priorityTopics = [] }: TodayPageProps) {
   const todayKey = toDateKey(new Date());
   const relevantActivities = activities
     .filter((activity) => (
@@ -31,6 +33,11 @@ export function TodayPage({ activities, onOpenActivity }: TodayPageProps) {
   const plannedMinutes = relevantActivities
     .filter((activity) => activity.status !== "completed")
     .reduce((sum, activity) => sum + activity.estimatedMinutes, 0);
+  const todayPlan = activities.filter((activity) => activity.date === todayKey && activity.planningOrigin !== "manual");
+  const planCounts = (["study", "review", "exercise", "reinforcement"] as const).map((type) => ({
+    type,
+    count: todayPlan.filter((activity) => activity.type === type).length,
+  }));
 
   return (
     <div className="standard-page today-page">
@@ -50,6 +57,28 @@ export function TodayPage({ activities, onOpenActivity }: TodayPageProps) {
         <div className="attention-callout"><AlertCircle size={17} /><span><strong>{overdueCount} {overdueCount === 1 ? "atividade precisa" : "atividades precisam"} ser retomada.</strong> Elas aparecem primeiro na sua fila.</span></div>
       ) : null}
 
+      {todayPlan.length ? (
+        <section className="today-plan-overview" aria-label="Plano adaptativo de hoje">
+          <header><div><Sparkles size={16} /><strong>Plano de hoje</strong></div><span>Gerado a partir de incidência e desempenho</span></header>
+          <div>{planCounts.map(({ type, count }) => <div key={type}><strong>{count}</strong><span>{activityTypeLabels[type]}</span></div>)}</div>
+        </section>
+      ) : null}
+
+      {priorityTopics.length ? (
+        <section className="adaptive-priorities" aria-label="Prioridades adaptativas">
+          <header><div><TrendingUp size={16} /><strong>Prioridades adaptativas</strong></div><span>O que merece mais atenção agora</span></header>
+          <div className="adaptive-priorities__list">
+            {priorityTopics.slice(0, 4).map((item) => (
+              <div key={`${item.subjectId}-${item.topicId ?? "subject"}-${item.subtopic ?? "topic"}`}>
+                <span className="adaptive-priority-score">{Math.round(item.priorityWeight * 100)}%</span>
+                <div><strong>{item.subtopic || item.topic}</strong><span>{item.subject}{item.subtopic ? ` · ${item.topic}` : ""}</span></div>
+                <small>{item.recentErrorReason ? `Erro recente: ${errorReasonLabels[item.recentErrorReason].toLowerCase()}` : "Incidência da matéria"}</small>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="today-list" aria-label="Atividades de hoje e atrasadas">
         {relevantActivities.length ? relevantActivities.map((activity, index) => {
           const status = getVisualStatus(activity);
@@ -60,7 +89,7 @@ export function TodayPage({ activities, onOpenActivity }: TodayPageProps) {
               <span className="today-activity__icon"><ActivityTypeIcon size={19} type={activity.type} /></span>
               <div className="today-activity__content">
                 <div className="today-activity__title-row">
-                  <div><span>{activity.subject}</span><h2>{activity.topic}</h2></div>
+                  <div><span>{activity.subject}</span><h2>{activity.focusLabel ?? activity.topic}</h2></div>
                   {lateDays ? <span className="late-badge">{lateDays}d atrasada</span> : null}
                   {activity.status === "completed" ? <span className="complete-badge"><CheckCircle2 size={13} /> Concluída</span> : null}
                 </div>
