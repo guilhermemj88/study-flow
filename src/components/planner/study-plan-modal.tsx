@@ -18,6 +18,7 @@ export function StudyPlanModal({ initialPreview, onApplied, onClose, open }: Stu
   const [loading, setLoading] = useState(!initialPreview);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const topIncidence = preview ? [...preview.priorities].sort((a, b) => b.incidenceWeight - a.incidenceWeight).slice(0, 4) : [];
 
   useEffect(() => {
     if (!open) return;
@@ -39,7 +40,7 @@ export function StudyPlanModal({ initialPreview, onApplied, onClose, open }: Stu
   }
 
   return (
-    <Modal description="A distribuição usa incidência, desempenho e sua disponibilidade semanal." onClose={onClose} open={open} size="large" title={preview?.hasGeneratedPlan ? "Recalcular plano de estudos" : "Gerar plano de estudos"}>
+    <Modal description="O plano-base usa a incidência; desempenho só entra quando houver histórico de exercícios." onClose={onClose} open={open} size="large" title={preview?.hasGeneratedPlan ? "Recalcular plano de estudos" : "Gerar plano de estudos"}>
       {loading ? <div className="planner-modal-loading"><LoaderCircle className="spin" size={24} /> Calculando distribuição…</div> : preview ? <div className="planner-preview">
         {preview.incidenceChanged ? <div className="planner-incidence-notice"><Sparkles size={16} /><span><strong>Novos dados de incidência disponíveis.</strong> Revise a prévia antes de recalcular.</span></div> : null}
         <div className="planner-preview__metrics">
@@ -51,7 +52,7 @@ export function StudyPlanModal({ initialPreview, onApplied, onClose, open }: Stu
           <div><strong>{preview.activityCount}</strong><span>atividades</span></div>
         </div>
         <div className="planner-period"><span>Período</span><strong>{new Intl.DateTimeFormat("pt-BR").format(new Date(`${preview.startDate}T12:00:00`))} até {new Intl.DateTimeFormat("pt-BR").format(new Date(`${preview.endDate}T12:00:00`))}</strong></div>
-        <div className="planner-priority-preview"><span>Maior prioridade</span>{preview.priorities.slice(0, 4).map((item) => <div key={`${item.subjectId}-${item.topicId}-${item.subtopic}`}><strong>{item.subtopic || item.topic}</strong><small>{item.subject} · {(item.priorityWeight * 100).toFixed(1)}%</small></div>)}</div>
+        <div className="planner-priority-preview"><span>Top temas por incidência</span>{topIncidence.map((item) => <div key={`${item.subjectId}-${item.topicId}-${item.subtopic}`}><strong>{item.subtopic || item.topic}</strong><small>{item.subject} · {(item.incidenceWeight * 100).toFixed(1)}%</small></div>)}</div>
         {!preview.sourceCount ? <p className="form-error">Selecione ao menos uma fonte com incidência persistida antes de gerar.</p> : null}
         {error ? <p className="form-error">{error}</p> : null}
         <footer className="form-footer"><button className="button button--ghost" onClick={onClose} type="button">Cancelar</button><button className="button button--primary" disabled={saving || !preview.activityCount} onClick={() => void apply()} type="button"><Sparkles size={16} />{saving ? "Aplicando…" : preview.hasGeneratedPlan ? "Recalcular plano" : "Gerar plano"}</button></footer>

@@ -36,6 +36,7 @@ export interface PriorityTopic {
   recentErrorReason?: ErrorReason;
   recentErrorAt?: string;
   successStreak: number;
+  hasPerformanceHistory: boolean;
 }
 
 export interface PlannedActivityPreview {
@@ -68,6 +69,8 @@ export interface StudyPlanPreview {
   topicCount: number;
   totalMinutes: number;
   activityCount: number;
+  hasIncidenceData: boolean;
+  hasPerformanceHistory: boolean;
   incidenceChanged: boolean;
   hasGeneratedPlan: boolean;
   priorities: PriorityTopic[];

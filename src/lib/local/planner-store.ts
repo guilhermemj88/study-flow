@@ -187,11 +187,14 @@ export class LocalPlannerStore {
       JOIN subjects s ON s.id = sts.subject_id AND s.user_id = sts.user_id
       LEFT JOIN topics t ON t.id = sts.topic_id AND t.user_id = sts.user_id
       WHERE sts.user_id = ? ORDER BY s.name, t.name, sts.subtopic_text`).all(plan.id, this.userId) as IncidenceRow[];
-    const sourceCount = (database.prepare(`SELECT COUNT(*) AS total FROM study_plan_sources
-      WHERE user_id = ? AND study_plan_id = ? AND use_for_incidence = 1`).get(this.userId, plan.id) as { total: number }).total;
-    const analyzedQuestionCount = (database.prepare(`SELECT COUNT(*) AS total FROM questions q
+    const sourceCount = new Set(rows.map((row) => row.source_id)).size;
+    const classifiedQuestionCount = (database.prepare(`SELECT COUNT(*) AS total FROM questions q
       JOIN study_plan_sources pss ON pss.source_id = q.source_id AND pss.user_id = q.user_id
-      WHERE q.user_id = ? AND pss.study_plan_id = ? AND pss.use_for_incidence = 1`).get(this.userId, plan.id) as { total: number }).total;
+      WHERE q.user_id = ? AND pss.study_plan_id = ? AND pss.use_for_incidence = 1
+        AND EXISTS (SELECT 1 FROM source_topic_stats sts WHERE sts.user_id = q.user_id AND sts.source_id = q.source_id)`)
+      .get(this.userId, plan.id) as { total: number }).total;
+    const persistedQuestionCount = rows.reduce((sum, row) => sum + Math.max(0, row.question_count), 0);
+    const analyzedQuestionCount = classifiedQuestionCount || persistedQuestionCount;
     const aggregated = new Map<string, { subjectId: string; subject: string; topicId: string; topic: string; subtopic?: string; questionCount: number; incidence: number }>();
     for (const row of rows) {
       let topicId = row.topic_id;
@@ -233,6 +236,7 @@ export class LocalPlannerStore {
       );
       const itemAttempts = attempts.filter(matches);
       const itemErrors = errors.filter(matches);
+      const hasPerformanceHistory = itemAttempts.length > 0 || itemErrors.length > 0;
       const accuracy = itemAttempts.length ? itemAttempts.filter((attempt) => attempt.correct).length / itemAttempts.length : 1;
       let successStreak = 0;
       for (const attempt of itemAttempts) {
@@ -263,6 +267,7 @@ export class LocalPlannerStore {
         recentErrorReason: strongest?.reason,
         recentErrorAt: mostRecent?.at,
         successStreak,
+        hasPerformanceHistory,
       };
     });
     const total = scored.reduce((sum, item) => sum + item.rawPriority, 0) || 1;
@@ -392,6 +397,8 @@ export class LocalPlannerStore {
       topicCount: new Set(priorities.map((item) => `${item.subjectId}:${item.topicId}`)).size,
       totalMinutes: activities.reduce((sum, activity) => sum + activity.estimatedMinutes, 0),
       activityCount: activities.length,
+      hasIncidenceData: incidence.sourceCount > 0 && priorities.length > 0,
+      hasPerformanceHistory: priorities.some((item) => item.hasPerformanceHistory),
       incidenceChanged: Boolean(settingsRow.last_generated_at && settingsRow.last_incidence_signature !== incidence.signature),
       hasGeneratedPlan: Boolean(settingsRow.last_generated_at),
       priorities,

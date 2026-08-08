@@ -102,6 +102,25 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
     setCompletionActivityId(null);
   }
 
+  async function refreshPlannerAfterMutation() {
+    await reload();
+    const [preview, priorities] = await Promise.all([
+      getStudyRepository().previewStudyPlan(),
+      getStudyRepository().getPriorityTopics(),
+    ]);
+    setPlannerPreview(preview);
+    setPriorityTopics(priorities);
+  }
+
+  async function generatePlannerFromCalendar() {
+    if (plannerPreview?.hasGeneratedPlan) {
+      await getStudyRepository().recalculateFuturePlan(plannerPreview.startDate);
+    } else {
+      await getStudyRepository().generateStudyPlan(plannerPreview?.startDate);
+    }
+    await refreshPlannerAfterMutation();
+  }
+
   function renderView() {
     if (!isReady) return <LoadingScreen />;
     switch (view) {
@@ -140,6 +159,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
             onCreateActivity={(date) => setFormState({ initialDate: date })}
             onOpenActivity={(activity) => setSelectedActivityId(activity.id)}
             onOpenPlanner={() => setPlannerOpen(true)}
+            onGeneratePlanner={generatePlannerFromCalendar}
             plannerPreview={plannerPreview}
           />
         );
@@ -220,15 +240,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
 
       <StudyPlanModal
         initialPreview={plannerPreview}
-        onApplied={async () => {
-          await reload();
-          const [preview, priorities] = await Promise.all([
-            getStudyRepository().previewStudyPlan(),
-            getStudyRepository().getPriorityTopics(),
-          ]);
-          setPlannerPreview(preview);
-          setPriorityTopics(priorities);
-        }}
+        onApplied={refreshPlannerAfterMutation}
         onClose={() => setPlannerOpen(false)}
         open={plannerOpen}
       />

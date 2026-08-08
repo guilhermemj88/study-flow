@@ -32,6 +32,7 @@ interface CalendarPageProps {
   onCreateActivity: (date?: string) => void;
   onOpenActivity: (activity: StudyActivity) => void;
   onOpenPlanner: () => void;
+  onGeneratePlanner: () => Promise<void>;
   plannerPreview?: StudyPlanPreview | null;
 }
 
@@ -51,11 +52,13 @@ function studyStreak(activities: StudyActivity[]): number {
   return streak;
 }
 
-export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onOpenPlanner, plannerPreview }: CalendarPageProps) {
+export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onOpenPlanner, onGeneratePlanner, plannerPreview }: CalendarPageProps) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
+  const [generatingPlan, setGeneratingPlan] = useState(false);
+  const [plannerError, setPlannerError] = useState<string | null>(null);
   const todayKey = toDateKey(new Date());
   const calendarDays = useMemo(() => getCalendarDays(currentMonth), [currentMonth]);
   const groupedActivities = useMemo(() => {
@@ -86,6 +89,22 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
   const monthActivityDays = calendarDays.filter(
     (day) => isSameMonth(day, currentMonth) && (groupedActivities.get(toDateKey(day))?.length ?? 0) > 0,
   );
+  const hasFutureActivities = activities.some((activity) => activity.date >= todayKey && activity.status !== "completed");
+  const showInitialPlanPrompt = Boolean(
+    plannerPreview?.hasIncidenceData && plannerPreview.activityCount > 0 && !hasFutureActivities,
+  );
+
+  async function generateInitialPlan() {
+    setGeneratingPlan(true);
+    setPlannerError(null);
+    try {
+      await onGeneratePlanner();
+    } catch (error) {
+      setPlannerError(error instanceof Error ? error.message : "Não foi possível gerar o plano inicial.");
+    } finally {
+      setGeneratingPlan(false);
+    }
+  }
 
   return (
     <div className="calendar-page">
@@ -106,6 +125,17 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
           <button className="button button--primary" onClick={() => onCreateActivity()} type="button"><Plus size={17} /> Nova atividade</button>
         </div>
       </header>
+
+      {showInitialPlanPrompt ? (
+        <section className="calendar-initial-plan" aria-label="Plano inicial disponível">
+          <div><Sparkles size={20} /><span><strong>Seu plano inicial está pronto para ser criado com base nas provas analisadas.</strong><small>A distribuição já considera a incidência real de cada tema, mesmo sem exercícios respondidos.</small></span></div>
+          <div className="calendar-initial-plan__actions">
+            <button className="button button--ghost" onClick={onOpenPlanner} type="button">Visualizar plano</button>
+            <button className="button button--primary" disabled={generatingPlan} onClick={() => void generateInitialPlan()} type="button"><Sparkles size={16} /> {generatingPlan ? "Gerando…" : "Gerar plano"}</button>
+          </div>
+          {plannerError ? <p className="form-error">{plannerError}</p> : null}
+        </section>
+      ) : null}
 
       {plannerPreview?.incidenceChanged ? (
         <button className="calendar-incidence-notice" onClick={onOpenPlanner} type="button">
@@ -177,7 +207,7 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
                 </div>
               </div>
             );
-          }) : <EmptyState title="Mês livre" description="Adicione uma atividade para começar seu planejamento." />}
+          }) : <EmptyState title="Mês livre" description="Visualize seu plano por incidência ou adicione uma atividade manualmente." />}
         </div>
       </section>
     </div>

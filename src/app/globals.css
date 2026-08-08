@@ -404,6 +404,26 @@ textarea:focus-visible {
 .calendar-incidence-notice svg { flex: 0 0 auto; color: var(--green); }
 .calendar-incidence-notice strong { color: var(--green); }
 
+.calendar-initial-plan {
+  display: grid;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 14px 22px;
+  margin-top: 16px;
+  border: 1px solid rgba(125, 240, 166, 0.2);
+  border-radius: 12px;
+  background: linear-gradient(120deg, rgba(125, 240, 166, 0.085), rgba(16, 20, 18, 0.76));
+  padding: 16px 18px;
+}
+
+.calendar-initial-plan > div:first-child,
+.calendar-initial-plan__actions { display: flex; align-items: center; gap: 10px; }
+.calendar-initial-plan > div:first-child > svg { flex: 0 0 auto; color: var(--green); }
+.calendar-initial-plan > div:first-child span { display: flex; flex-direction: column; gap: 4px; }
+.calendar-initial-plan strong { color: #dce8e0; font-size: 11px; }
+.calendar-initial-plan small { color: var(--text-muted); font-size: 9px; }
+.calendar-initial-plan .form-error { grid-column: 1 / -1; margin: 0; }
+
 .kpi-strip {
   display: grid;
   overflow: hidden;
@@ -2596,6 +2616,8 @@ textarea:focus-visible {
   .calendar-toolbar__actions { flex-direction: column; }
   .calendar-toolbar__actions > .button--ghost:not(.planner-button) { display: none; }
   .calendar-toolbar__actions .planner-button { width: 100%; }
+  .calendar-initial-plan { align-items: stretch; grid-template-columns: 1fr; }
+  .calendar-initial-plan__actions { display: grid; grid-template-columns: 1fr 1fr; }
   .calendar-toolbar__actions .button--primary { width: 100%; }
   .kpi-strip { grid-template-columns: repeat(2, 1fr); }
   .kpi-item { min-height: 65px; padding: 10px 13px; }
@@ -2655,6 +2677,7 @@ textarea:focus-visible {
   .status-legend span { gap: 3px; }
   .today-summary > div { padding-inline: 9px; }
   .today-summary span { font-size: 9px; }
+  .calendar-initial-plan__actions { grid-template-columns: 1fr; }
   .today-plan-overview > header,
   .adaptive-priorities > header { align-items: flex-start; flex-direction: column; gap: 3px; padding-block: 10px; }
   .adaptive-priorities__list > div { grid-template-columns: 40px minmax(0, 1fr); }

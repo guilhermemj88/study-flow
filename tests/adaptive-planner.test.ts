@@ -43,6 +43,86 @@ function daysBetween(from: string, to: string) {
   return Math.round((new Date(`${to}T12:00:00Z`).getTime() - new Date(`${from}T12:00:00Z`).getTime()) / 86_400_000);
 }
 
+test("incidência sozinha gera o plano-base sem exercícios respondidos", () => {
+  const account = user("Plano Base");
+  const study = new LocalStudyStore(account.id);
+  study.createSubject("Conteúdo apenas do catálogo");
+  addSource(account.id, "Prova analisada", [
+    { subject: "Medicina", topic: "Pneumologia", questionCount: 4, incidencePercentage: 80 },
+    { subject: "Medicina", topic: "Reumatologia", questionCount: 1, incidencePercentage: 20 },
+  ]);
+  const planner = new LocalPlannerStore(account.id);
+  planner.updateSettings({
+    examDate: "2030-02-28",
+    availability: allDays(60),
+    sessionMinutes: 30,
+    dailyLimitMinutes: 60,
+    firstReviewDays: 1,
+    secondReviewDays: 2,
+    reinforcementDays: 3,
+  });
+
+  assert.equal(study.load().attemptSummaries.length, 0);
+  const preview = planner.preview({ startDate: "2030-01-01" });
+  assert.equal(preview.hasIncidenceData, true);
+  assert.equal(preview.hasPerformanceHistory, false);
+  assert.equal(preview.sourceCount, 1);
+  assert.equal(preview.analyzedQuestionCount, 5);
+  assert.ok(preview.activityCount > 0, "histórico de desempenho não pode bloquear a geração");
+  assert.ok(!preview.priorities.some((item) => item.subject === "Conteúdo apenas do catálogo"));
+  assert.ok(preview.priorities.every((item) => (
+    item.performanceFactor === 1 && item.errorReasonFactor === 1 && item.recencyFactor === 1
+      && item.hasPerformanceHistory === false
+  )));
+  const pneumologia = preview.priorities.find((item) => item.topic === "Pneumologia")!;
+  const reumatologia = preview.priorities.find((item) => item.topic === "Reumatologia")!;
+  assert.ok(pneumologia.incidenceWeight > reumatologia.incidenceWeight);
+  assert.ok(pneumologia.priorityWeight > reumatologia.priorityWeight);
+
+  const result = planner.generateStudyPlan({ startDate: "2030-01-01" });
+  assert.ok(result.created > 0);
+  assert.ok(study.load().activities.every((activity) => activity.planningOrigin === "incidence"));
+});
+
+test("desempenho altera pesos somente depois que surge histórico", () => {
+  const account = user("Camada Desempenho");
+  const sourceId = addSource(account.id, "Prova equilibrada", [
+    { subject: "Medicina", topic: "Pneumologia", questionCount: 5, incidencePercentage: 50 },
+    { subject: "Medicina", topic: "Reumatologia", questionCount: 5, incidencePercentage: 50 },
+  ]);
+  const planner = new LocalPlannerStore(account.id);
+  const initial = planner.preview({ startDate: "2030-01-01" });
+  const initialPneumologia = initial.priorities.find((item) => item.topic === "Pneumologia")!;
+  const initialReumatologia = initial.priorities.find((item) => item.topic === "Reumatologia")!;
+  assert.equal(initial.hasPerformanceHistory, false);
+  assert.equal(initialPneumologia.priorityWeight, initialReumatologia.priorityWeight);
+  assert.equal(initialPneumologia.priorityWeight, initialPneumologia.incidenceWeight);
+
+  const questions = new LocalQuestionStore(account.id);
+  const [questionId] = questions.saveQuestionsByName(sourceId, [{
+    questionNumber: 1,
+    statement: "Questão de pneumologia",
+    subject: "Medicina",
+    topic: "Pneumologia",
+    correctAlternative: "A",
+    alternatives: [{ label: "A", text: "Correta" }, { label: "B", text: "Incorreta" }],
+  }]);
+  const sessionId = questions.createSession([questionId]);
+  const answer = questions.answer(sessionId, "B");
+  const session = questions.getSession(sessionId);
+  questions.setErrorReason(session.questions[0].sessionQuestionId, answer.attemptId, "did_not_know");
+  questions.complete(sessionId);
+
+  const adapted = planner.preview({ startDate: "2030-01-01" });
+  const adaptedPneumologia = adapted.priorities.find((item) => item.topic === "Pneumologia")!;
+  const adaptedReumatologia = adapted.priorities.find((item) => item.topic === "Reumatologia")!;
+  assert.equal(adapted.hasPerformanceHistory, true);
+  assert.equal(adaptedPneumologia.hasPerformanceHistory, true);
+  assert.equal(adaptedReumatologia.hasPerformanceHistory, false);
+  assert.equal(adaptedPneumologia.incidenceWeight, adaptedReumatologia.incidenceWeight);
+  assert.ok(adaptedPneumologia.priorityWeight > adaptedReumatologia.priorityWeight);
+});
+
 test("plano inicial pondera incidência, garante cobertura mínima e respeita espaçamento", () => {
   const account = user("Distribuicao");
   addSource(account.id, "Prova ponderada", [
