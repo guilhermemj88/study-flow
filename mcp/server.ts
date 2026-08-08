@@ -1,6 +1,7 @@
 import { loadEnvConfig } from "@next/env";
 import { getMcpPublicBaseUrl } from "@/lib/local/oauth-store";
 import { createStudyFlowMcpApp } from "./app";
+import { getMcpHostValidationConfig } from "./host-validation";
 
 loadEnvConfig(process.cwd());
 
@@ -12,6 +13,7 @@ if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("MCP_PO
 const httpServer = createStudyFlowMcpApp(host).listen(port, host, () => {
   console.log(`Study Flow MCP em http://${host}:${port}/mcp`);
   console.log(`URL pública configurada: ${getMcpPublicBaseUrl()}`);
+  console.log(`Hosts MCP permitidos: ${getMcpHostValidationConfig().allowedHostnames.join(", ")}`);
 });
 httpServer.on("error", (error) => { console.error(error); process.exit(1); });
 
