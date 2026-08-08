@@ -6,6 +6,7 @@
     "dev": "next dev --hostname 127.0.0.1",
     "dev:all": "node scripts/dev-all.mjs",
     "db:init": "tsx scripts/init-db.ts",
+    "user:make-admin": "tsx scripts/make-admin.ts",
     "mcp:dev": "tsx watch mcp/server.ts",
     "mcp:start": "tsx mcp/server.ts",
     "mcp:inspect": "npx @modelcontextprotocol/inspector http://127.0.0.1:3333/mcp",

@@ -7,6 +7,7 @@ interface UserRow {
   email: string;
   password_hash: string;
   display_name: string;
+  role: "admin" | "user";
 }
 
 const SESSION_DAYS = 30;
@@ -30,7 +31,7 @@ function passwordMatches(password: string, stored: string) {
 }
 
 function toUser(row: UserRow): LocalAuthUser {
-  return { id: row.id, email: row.email, displayName: row.display_name };
+  return { id: row.id, email: row.email, displayName: row.display_name, role: row.role };
 }
 
 export function createUser(input: { displayName: string; email: string; password: string }): LocalAuthUser {
@@ -52,11 +53,11 @@ export function createUser(input: { displayName: string; email: string; password
       VALUES (?, ?, 'Meu plano', 1, ?, ?)`)
       .run(newId(), id, timestamp, timestamp);
   })();
-  return { id, email, displayName };
+  return { id, email, displayName, role: "user" };
 }
 
 export function authenticateUser(emailInput: string, password: string): LocalAuthUser | null {
-  const row = getDatabase().prepare("SELECT id, email, password_hash, display_name FROM users WHERE email = ?")
+  const row = getDatabase().prepare("SELECT id, email, password_hash, display_name, role FROM users WHERE email = ?")
     .get(emailInput.trim().toLowerCase()) as UserRow | undefined;
   if (!row || !passwordMatches(password, row.password_hash)) return null;
   return toUser(row);
@@ -76,7 +77,7 @@ export function getUserBySessionToken(token?: string | null): LocalAuthUser | nu
   if (!token) return null;
   const database = getDatabase();
   database.prepare("DELETE FROM user_sessions WHERE expires_at <= ?").run(nowIso());
-  const row = database.prepare(`SELECT users.id, users.email, users.password_hash, users.display_name
+  const row = database.prepare(`SELECT users.id, users.email, users.password_hash, users.display_name, users.role
     FROM user_sessions JOIN users ON users.id = user_sessions.user_id
     WHERE user_sessions.token_hash = ? AND user_sessions.expires_at > ?`)
     .get(tokenHash(token), nowIso()) as UserRow | undefined;

@@ -39,9 +39,17 @@ Cada store é instanciado com o `user_id` resolvido do access token. IDs recebid
 
 Redirect URIs aceitos por padrão pertencem ao domínio `chatgpt.com`. Redirects HTTP de localhost só são aceitos quando `MCP_ALLOW_INSECURE_DEV_REDIRECTS=true`, destinado a testes locais.
 
+## Administração local
+
+Usuários novos recebem sempre `role=user`. A promoção para `role=admin` é explícita pelo comando `npm run user:make-admin -- email@usuario.com`. Páginas e APIs `/admin/*` repetem a autorização no servidor e retornam `403` para usuários comuns; o último administrador não pode ser rebaixado.
+
+O painel não armazena configuração no navegador e nunca entrega hashes de senha, access tokens, refresh tokens ou segredos. Clientes OAuth podem ser revogados, o que revoga seus tokens. A indicação “ChatGPT conectado” depende de cliente com redirect do `chatgpt.com`, autorização ainda ativa e chamada MCP autenticada auditada para o mesmo cliente.
+
+Diagnósticos administrativos são auditados em `admin_audit_log` com horário, administrador, ação, resultado, duração e erro resumido. O teste de escrita usa as próprias ferramentas MCP e remove a atividade, o assunto e a matéria temporários ao final.
+
 ## Ferramentas
 
-Leitura: `list_sources`, `get_source`, `get_source_file`, `get_active_plan`, `get_plan_sources`, `list_questions`, `list_calendar`, `get_activity`, `get_performance`.
+Leitura: `get_current_user`, `list_sources`, `get_source`, `get_source_file`, `get_active_plan`, `get_plan_sources`, `list_questions`, `list_calendar`, `get_activity`, `get_performance`.
 
 Escrita: `create_source`, `save_source_analysis`, `save_source_topics`, `save_incidence`, `save_questions`, `create_activity`, `update_activity`.
 

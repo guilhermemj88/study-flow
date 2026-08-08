@@ -107,6 +107,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
               router.refresh();
             }}
             planName={activePlan?.name}
+            role={user?.role}
             subjectCount={subjects.length}
           />
         );

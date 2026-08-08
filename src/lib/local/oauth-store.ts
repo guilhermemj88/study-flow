@@ -7,7 +7,7 @@ const ACCESS_TOKEN_SECONDS = 60 * 60;
 const REFRESH_TOKEN_DAYS = 30;
 export const MCP_SCOPES = ["studyflow:read", "studyflow:write"] as const;
 
-interface ClientRow { id: string; client_name: string; redirect_uris_json: string }
+interface ClientRow { id: string; client_name: string; redirect_uris_json: string; revoked_at: string | null }
 interface RequestRow {
   id: string; client_id: string; redirect_uri: string; state: string | null; code_challenge: string;
   scopes: string; resource: string; expires_at: string;
@@ -66,7 +66,7 @@ export function createAuthorizationRequest(input: {
   codeChallengeMethod: string; scope?: string; resource?: string; responseType?: string;
 }) {
   const client = getDatabase().prepare("SELECT * FROM oauth_clients WHERE id = ?").get(input.clientId) as ClientRow | undefined;
-  if (!client || !parseUris(client.redirect_uris_json).includes(input.redirectUri)) throw new Error("Cliente OAuth ou redirect_uri inválido.");
+  if (!client || client.revoked_at || !parseUris(client.redirect_uris_json).includes(input.redirectUri)) throw new Error("Cliente OAuth ou redirect_uri inválido.");
   if (input.responseType !== "code") throw new Error("Somente response_type=code é aceito.");
   if (input.codeChallengeMethod !== "S256" || !/^[A-Za-z0-9_-]{43,128}$/.test(input.codeChallenge)) throw new Error("PKCE S256 é obrigatório.");
   const resource = input.resource || getMcpResourceUrl();
@@ -110,17 +110,20 @@ function issueTokens(userId: string, clientId: string, scopes: string, resource:
   const accessToken = token(); const refreshToken = token(); const timestamp = nowIso();
   const expiresAt = new Date(Date.now() + ACCESS_TOKEN_SECONDS * 1000).toISOString();
   const refreshExpiresAt = new Date(Date.now() + REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  getDatabase().prepare(`INSERT INTO oauth_tokens
+  const database = getDatabase();
+  database.prepare(`INSERT INTO oauth_tokens
     (id, user_id, client_id, access_token_hash, refresh_token_hash, scopes, resource,
      expires_at, refresh_expires_at, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(newId(), userId, clientId, hash(accessToken), hash(refreshToken), scopes, resource, expiresAt, refreshExpiresAt, timestamp);
+  database.prepare("UPDATE oauth_clients SET last_authorized_at = ? WHERE id = ?").run(timestamp, clientId);
   return { access_token: accessToken, token_type: "Bearer", expires_in: ACCESS_TOKEN_SECONDS, refresh_token: refreshToken, scope: scopes, resource };
 }
 
 export function exchangeAuthorizationCode(input: { code: string; clientId: string; redirectUri: string; codeVerifier: string; resource?: string }) {
   const database = getDatabase();
   const row = database.prepare("SELECT * FROM oauth_authorization_codes WHERE code_hash = ?").get(hash(input.code)) as CodeRow | undefined;
-  if (!row || row.used_at || row.expires_at <= nowIso() || row.client_id !== input.clientId || row.redirect_uri !== input.redirectUri) throw new Error("Código OAuth inválido ou expirado.");
+  const client = database.prepare("SELECT revoked_at FROM oauth_clients WHERE id = ?").get(input.clientId) as { revoked_at: string | null } | undefined;
+  if (!row || !client || client.revoked_at || row.used_at || row.expires_at <= nowIso() || row.client_id !== input.clientId || row.redirect_uri !== input.redirectUri) throw new Error("Código OAuth inválido ou expirado.");
   if ((input.resource || row.resource) !== row.resource || !pkceMatches(input.codeVerifier, row.code_challenge)) throw new Error("Validação PKCE/resource falhou.");
   return database.transaction(() => {
     database.prepare("UPDATE oauth_authorization_codes SET used_at = ? WHERE id = ?").run(nowIso(), row.id);
@@ -130,8 +133,10 @@ export function exchangeAuthorizationCode(input: { code: string; clientId: strin
 
 export function refreshAccessToken(input: { refreshToken: string; clientId: string; scope?: string; resource?: string }) {
   const database = getDatabase();
-  const row = database.prepare(`SELECT * FROM oauth_tokens WHERE refresh_token_hash = ? AND revoked_at IS NULL
-    AND refresh_expires_at > ?`).get(hash(input.refreshToken), nowIso()) as TokenRow | undefined;
+  const row = database.prepare(`SELECT ot.* FROM oauth_tokens ot
+    JOIN oauth_clients oc ON oc.id = ot.client_id
+    WHERE ot.refresh_token_hash = ? AND ot.revoked_at IS NULL AND oc.revoked_at IS NULL
+    AND ot.refresh_expires_at > ?`).get(hash(input.refreshToken), nowIso()) as TokenRow | undefined;
   if (!row || row.client_id !== input.clientId || (input.resource && input.resource !== row.resource)) throw new Error("Refresh token inválido ou expirado.");
   const requested = input.scope ? assertScopes(input.scope) : row.scopes;
   const granted = new Set(splitScopes(row.scopes));
@@ -142,11 +147,15 @@ export function refreshAccessToken(input: { refreshToken: string; clientId: stri
   })();
 }
 
-export function resolveAccessToken(rawToken: string): { user: LocalAuthUser; scopes: string[]; resource: string } | null {
-  const row = getDatabase().prepare(`SELECT ot.user_id, ot.scopes, ot.resource, u.id, u.email, u.display_name
-    FROM oauth_tokens ot JOIN users u ON u.id = ot.user_id
-    WHERE ot.access_token_hash = ? AND ot.revoked_at IS NULL AND ot.expires_at > ?`)
-    .get(hash(rawToken), nowIso()) as { user_id: string; scopes: string; resource: string; id: string; email: string; display_name: string } | undefined;
+export function resolveAccessToken(rawToken: string): { user: LocalAuthUser; scopes: string[]; resource: string; clientId: string } | null {
+  const database = getDatabase();
+  const row = database.prepare(`SELECT ot.user_id, ot.client_id, ot.scopes, ot.resource, u.id, u.email, u.display_name, u.role
+    FROM oauth_tokens ot
+    JOIN users u ON u.id = ot.user_id
+    JOIN oauth_clients oc ON oc.id = ot.client_id
+    WHERE ot.access_token_hash = ? AND ot.revoked_at IS NULL AND oc.revoked_at IS NULL AND ot.expires_at > ?`)
+    .get(hash(rawToken), nowIso()) as { user_id: string; client_id: string; scopes: string; resource: string; id: string; email: string; display_name: string; role: "admin" | "user" } | undefined;
   if (!row || row.resource !== getMcpResourceUrl()) return null;
-  return { user: { id: row.id, email: row.email, displayName: row.display_name }, scopes: splitScopes(row.scopes), resource: row.resource };
+  database.prepare("UPDATE oauth_clients SET last_used_at = ? WHERE id = ?").run(nowIso(), row.client_id);
+  return { user: { id: row.id, email: row.email, displayName: row.display_name, role: row.role }, scopes: splitScopes(row.scopes), resource: row.resource, clientId: row.client_id };
 }

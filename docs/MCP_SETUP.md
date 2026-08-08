@@ -14,6 +14,14 @@ O comando combinado inicia o Next.js em `localhost:3000` e o MCP em `127.0.0.1:3
 
 Abra `http://localhost:3000`, crie sua conta e valide `http://127.0.0.1:3333/health`.
 
+Promova explicitamente a conta que administrará a integração e entre novamente:
+
+```bash
+npm run user:make-admin -- email@usuario.com
+```
+
+O comando promove somente uma conta local já existente. Não há administrador automático. Depois, abra `http://localhost:3000/admin/chatgpt`.
+
 ## 2. Testar o MCP localmente
 
 O MCP exige OAuth inclusive localmente. Para um cliente local como o MCP Inspector, defina temporariamente:
@@ -74,15 +82,19 @@ https://mcp.seudominio.com/mcp
 
 O último endpoint deve responder `401` sem OAuth; isso é esperado.
 
+Use **Testar MCP** no painel administrativo para verificar separadamente servidor local, descoberta OAuth, túnel e acesso público. O teste **Ferramentas** usa uma autorização OAuth temporária; o teste **Leitura e escrita** cria uma atividade `__mcp_test__...` e confirma a remoção automática sem deixar resíduos de estudo.
+
 ## 4. Conectar ao ChatGPT Business
 
-No workspace Business, habilite o modo de desenvolvedor para conectores/MCP nas configurações administrativas, abra as configurações de conectores e crie um conector com:
+No ChatGPT, abra **Configurações → Segurança e login → Modo de desenvolvedor** e habilite-o. A disponibilidade pode depender da política do workspace Business. Depois, abra a [página Plugins do ChatGPT](https://chatgpt.com/plugins), use o botão de adicionar e cadastre:
 
 ```text
 https://mcp.seudominio.com/mcp
 ```
 
 Escolha autenticação OAuth quando solicitado. O ChatGPT descobre os endpoints, registra um cliente e abre a página “Conectar ao Study Flow”. Entre com a mesma conta criada no app local e autorize.
+
+O botão **Conectar ao ChatGPT** do painel apenas copia o endpoint validado e abre a página correta do ChatGPT. A conexão só é marcada como concluída quando o Study Flow encontra as três evidências reais: cliente ChatGPT registrado, autorização OAuth ativa e chamada MCP autenticada.
 
 Em uma conversa, habilite o conector e teste pedidos como:
 
@@ -99,6 +111,8 @@ Em uma conversa, habilite o conector e teste pedidos como:
 - não exponha `data/`, o arquivo SQLite ou a aplicação web;
 - faça backup de `data/` com os processos parados;
 - trate a conta local e o acesso ao túnel como credenciais privadas;
-- consulte `mcp_audit_log` no SQLite ao investigar operações do conector.
+- use `/admin/mcp-logs` para investigar operações sem expor tokens, senhas, segredos ou payloads;
+- revogar um cliente OAuth no painel invalida também seus tokens locais;
+- nunca remova o último administrador; essa regra também é aplicada no servidor.
 
 Referências oficiais: [construir um servidor MCP](https://developers.openai.com/plugins/build/mcp-server), [conectar e testar no ChatGPT](https://developers.openai.com/plugins/deploy/connect-chatgpt), [autenticação MCP](https://developers.openai.com/plugins/build/auth) e [limitações dos Quick Tunnels](https://developers.cloudflare.com/cloudflare-one/networks/connectors/cloudflare-tunnel/do-more-with-tunnels/trycloudflare/).

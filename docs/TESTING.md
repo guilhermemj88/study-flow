@@ -8,7 +8,7 @@ npm run lint
 npm run build
 ```
 
-Os testes locais cobrem o motor de seleção, migrations SQLite, autenticação, isolamento entre usuários, uploads, OAuth/PKCE e stores usados pela UI e pelo MCP.
+Os testes locais cobrem o motor de seleção, migrations SQLite, autenticação, isolamento entre usuários, uploads, OAuth/PKCE e stores usados pela UI e pelo MCP. Também cobrem papel padrão, promoção/rebaixamento, proteção do último administrador, `403` administrativo, clientes sem credenciais, revogação de tokens, diagnósticos online/offline/HTTPS inválido, ferramentas autenticadas e leitura/escrita com limpeza integral.
 
 ## Validação manual local
 
@@ -19,6 +19,8 @@ Os testes locais cobrem o motor de seleção, migrations SQLite, autenticação,
 5. Confirme `GET http://127.0.0.1:3333/health`.
 6. Confirme que `POST /mcp` sem Bearer retorna `401` e `WWW-Authenticate`.
 7. Execute o fluxo OAuth/PKCE com o MCP Inspector e chame ferramentas de leitura e escrita.
+8. Promova uma conta com `npm run user:make-admin -- email@usuario.com` e confirme as rotas `/admin/chatgpt`, `/admin/users` e `/admin/mcp-logs`.
+9. Entre como usuário comum e confirme que a navegação administrativa não aparece, o card MCP informa “Gerenciado” e a API administrativa retorna `403`.
 
 ## Validação do túnel e ChatGPT Business
 

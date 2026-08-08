@@ -1475,6 +1475,299 @@ textarea:focus-visible {
   background: var(--green-muted);
 }
 
+.settings-row--link {
+  color: inherit;
+  text-decoration: none;
+  transition: 150ms ease;
+}
+
+.settings-row--link:hover {
+  background: rgba(125, 240, 166, 0.035);
+}
+
+.nav-eyebrow--admin {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 19px;
+  color: #789481;
+}
+
+.sidebar-nav {
+  overflow-y: auto;
+}
+
+/* Administration */
+.admin-page {
+  max-width: 1220px;
+}
+
+.admin-feedback {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 16px;
+  border: 1px solid;
+  border-radius: 9px;
+  font-size: 10px;
+  padding: 11px 13px;
+}
+
+.admin-feedback--ok {
+  border-color: rgba(125, 240, 166, 0.2);
+  background: var(--green-muted);
+  color: var(--green);
+}
+
+.admin-feedback--error {
+  border-color: rgba(242, 115, 115, 0.2);
+  background: rgba(242, 115, 115, 0.07);
+  color: #ef9c9c;
+}
+
+.admin-status-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+  margin-bottom: 15px;
+}
+
+.admin-status-card,
+.admin-panel {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius);
+  background: rgba(16, 20, 18, 0.72);
+}
+
+.admin-status-card {
+  min-height: 105px;
+  padding: 15px;
+}
+
+.admin-status-card > div,
+.admin-panel > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.admin-status-card strong,
+.admin-panel h2 {
+  color: #dfe6e1;
+  font-size: 11px;
+}
+
+.admin-status-card p,
+.admin-panel header p,
+.admin-empty {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+  font-size: 9px;
+  line-height: 1.55;
+}
+
+.admin-status-card--chatgpt {
+  border-color: rgba(125, 240, 166, 0.13);
+}
+
+.admin-status,
+.admin-role,
+.admin-count {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 99px;
+  font-size: 8px;
+  font-weight: 700;
+  padding: 5px 8px;
+  white-space: nowrap;
+}
+
+.admin-status--ok,
+.admin-role--admin {
+  background: var(--green-muted);
+  color: var(--green);
+}
+
+.admin-status--offline,
+.admin-status--invalid {
+  background: rgba(242, 115, 115, 0.09);
+  color: var(--red);
+}
+
+.admin-status--warning,
+.admin-status--not_configured,
+.admin-role--user,
+.admin-count {
+  background: rgba(240, 163, 92, 0.08);
+  color: var(--orange);
+}
+
+.admin-panel {
+  overflow: hidden;
+  margin-top: 15px;
+}
+
+.admin-panel > header {
+  min-height: 67px;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 13px 16px;
+}
+
+.admin-panel h2 {
+  margin: 0;
+  font-size: 12px;
+}
+
+.endpoint-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.endpoint-list > div {
+  display: grid;
+  min-height: 56px;
+  align-items: center;
+  grid-template-columns: 110px minmax(0, 1fr) 34px;
+  gap: 10px;
+  border-bottom: 1px solid var(--line-soft);
+  padding: 10px 16px;
+}
+
+.endpoint-list span,
+.admin-table th {
+  color: var(--text-muted);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.endpoint-list code,
+.admin-table code,
+.admin-steps code {
+  overflow: hidden;
+  color: #aeb9b2;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 9px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.endpoint-list .icon-button {
+  width: 32px;
+  height: 32px;
+  border-color: var(--line);
+  border-radius: 8px;
+  background: #0d100f;
+  color: var(--text-muted);
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 16px;
+}
+
+.admin-steps {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  color: #aeb7b1;
+  font-size: 10px;
+  line-height: 1.55;
+  padding: 18px 22px 20px 38px;
+}
+
+.admin-table-wrap {
+  overflow-x: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: #aeb7b1;
+  font-size: 9px;
+}
+
+.admin-table th,
+.admin-table td {
+  border-bottom: 1px solid var(--line-soft);
+  padding: 11px 14px;
+  text-align: left;
+  vertical-align: middle;
+}
+
+.admin-table th:last-child,
+.admin-table td:last-child {
+  text-align: right;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.admin-table td strong,
+.admin-table td small {
+  display: block;
+}
+
+.admin-table td strong {
+  color: #d8dfda;
+  font-size: 10px;
+}
+
+.admin-table td small {
+  margin-top: 3px;
+  color: var(--text-muted);
+  font-size: 8px;
+}
+
+.audit-list > div {
+  display: grid;
+  align-items: center;
+  grid-template-columns: 10px minmax(170px, 1fr) minmax(120px, 0.7fr) 80px 140px;
+  gap: 10px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-muted);
+  font-size: 9px;
+  padding: 11px 16px;
+}
+
+.audit-list > div:last-child {
+  border-bottom: 0;
+}
+
+.audit-list strong {
+  color: var(--text-soft);
+}
+
+.admin-result-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-muted);
+}
+
+.admin-result-dot.ok { background: var(--green); }
+.admin-result-dot.error { background: var(--red); }
+.admin-empty { padding: 4px 16px 14px; }
+
+@media (max-width: 760px) {
+  .admin-status-grid { grid-template-columns: 1fr 1fr; }
+  .admin-panel > header { align-items: flex-start; flex-direction: column; }
+  .endpoint-list > div { grid-template-columns: 72px minmax(0, 1fr) 32px; }
+  .audit-list > div { grid-template-columns: 10px minmax(0, 1fr) auto; }
+  .audit-list > div span:nth-of-type(2), .audit-list time { display: none; }
+}
+
+@media (max-width: 480px) {
+  .admin-status-grid { grid-template-columns: 1fr; }
+  .admin-actions .button { width: 100%; }
+}
+
 /* Dialogs and forms */
 .dialog-backdrop,
 .drawer-backdrop {
@@ -2513,4 +2806,12 @@ textarea:focus-visible {
   .question-statement { font-size: 12px; }
   .answer-options button { grid-template-columns: 30px minmax(0,1fr) 20px; padding-inline: 8px; }
   .session-summary > div { grid-template-columns: auto auto; }
+}
+
+@media (max-width: 980px) {
+  .mobile-nav {
+    grid-auto-columns: minmax(68px, 1fr);
+    grid-auto-flow: column;
+    grid-template-columns: none;
+  }
 }

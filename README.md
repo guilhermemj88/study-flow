@@ -31,6 +31,14 @@ npm run dev:all
 
 Crie uma conta no Study Flow antes de autorizar o conector. Para publicar o MCP por HTTPS e conectá-lo ao ChatGPT Business, siga [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
+O primeiro administrador deve ser promovido explicitamente depois de criar a conta:
+
+```bash
+npm run user:make-admin -- email@usuario.com
+```
+
+Reinicie a sessão e abra `http://localhost:3000/admin/chatgpt`. Nenhuma conta recebe papel administrativo automaticamente.
+
 ## Funcionalidades
 
 - conta e sessão locais por usuário;
@@ -39,7 +47,8 @@ Crie uma conta no Study Flow antes de autorizar o conector. Para publicar o MCP 
 - banco de questões, sessões de exercício e classificação de erros;
 - incidência e desempenho;
 - MCP Streamable HTTP com leitura e gravação de fontes, análises, questões, incidência, calendário e desempenho;
-- OAuth 2.1 com Dynamic Client Registration, PKCE S256, access/refresh tokens e auditoria das ferramentas MCP.
+- OAuth 2.1 com Dynamic Client Registration, PKCE S256, access/refresh tokens e auditoria das ferramentas MCP;
+- painel administrativo para usuários, clientes OAuth, diagnósticos autenticados e logs MCP sem credenciais.
 
 ## Stack e persistência
 

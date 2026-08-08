@@ -42,6 +42,19 @@ export function createStudyFlowMcpServer(userId: string, scopes: string[]) {
   const canWrite = scopes.includes("studyflow:write");
   const requireWrite = () => { if (!canWrite) throw new Error("O token não possui o escopo studyflow:write."); };
 
+  server.registerTool("get_current_user", {
+    title: "Consultar usuário atual",
+    description: "Retorna a identidade local associada à autorização OAuth desta conexão.",
+    inputSchema: {},
+    annotations: annotations.read,
+  }, () => execute(userId, "get_current_user", () => {
+    const user = getDatabase().prepare("SELECT id, email, display_name, role FROM users WHERE id = ?").get(userId) as
+      | { id: string; email: string; display_name: string; role: "admin" | "user" }
+      | undefined;
+    if (!user) throw new Error("Usuário autenticado não encontrado.");
+    return { user: { id: user.id, email: user.email, displayName: user.display_name, role: user.role } };
+  }));
+
   server.registerTool("list_sources", {
     title: "Listar provas, editais e fontes", description: "Lista as fontes locais do usuário, seus vínculos com o plano e estatísticas de incidência.",
     inputSchema: { type: sourceType.optional().describe("Filtrar pelo tipo da fonte") }, annotations: annotations.read,

@@ -10,6 +10,10 @@ import {
   Files,
   Layers3,
   Settings2,
+  ShieldCheck,
+  ScrollText,
+  UsersRound,
+  Bot,
   Sparkles,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -23,6 +27,12 @@ const navItems = [
   { label: "Matérias", href: "/materias", icon: Layers3 },
   { label: "Provas", href: "/provas", icon: Files },
   { label: "Configurações", href: "/configuracoes", icon: Settings2 },
+];
+
+const adminNavItems = [
+  { label: "ChatGPT", href: "/admin/chatgpt", icon: Bot },
+  { label: "Usuários", href: "/admin/users", icon: UsersRound },
+  { label: "Logs MCP", href: "/admin/mcp-logs", icon: ScrollText },
 ];
 
 interface AppShellProps {
@@ -53,6 +63,21 @@ export function AppShell({ children }: AppShellProps) {
               </Link>
             );
           })}
+          {user?.role === "admin" ? (
+            <>
+              <span className="nav-eyebrow nav-eyebrow--admin"><ShieldCheck size={14} /> Administração</span>
+              {adminNavItems.map((item) => {
+                const active = pathname.startsWith(item.href);
+                const Icon = item.icon;
+                return (
+                  <Link className={`nav-link ${active ? "nav-link--active" : ""}`} href={item.href} key={item.href}>
+                    <Icon size={18} strokeWidth={1.8} />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </>
+          ) : null}
         </nav>
 
         <div className="sidebar-footer">
@@ -85,6 +110,12 @@ export function AppShell({ children }: AppShellProps) {
             </Link>
           );
         })}
+        {user?.role === "admin" ? (
+          <Link className={pathname.startsWith("/admin") ? "active" : ""} href="/admin/chatgpt">
+            <ShieldCheck size={19} />
+            <span>Admin</span>
+          </Link>
+        ) : null}
       </nav>
     </div>
   );

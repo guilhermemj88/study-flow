@@ -1,17 +1,20 @@
 "use client";
 
+import Link from "next/link";
 import { Cable, Database, LogOut, ShieldCheck, UserRound } from "lucide-react";
 import { PageHeading } from "@/components/ui/page-heading";
+import type { UserRole } from "@/types/auth";
 
 interface SettingsPageProps {
   activityCount: number;
   subjectCount: number;
   email?: string;
   planName?: string;
+  role?: UserRole;
   onLogout: () => Promise<void> | void;
 }
 
-export function SettingsPage({ activityCount, subjectCount, email, planName, onLogout }: SettingsPageProps) {
+export function SettingsPage({ activityCount, subjectCount, email, planName, role, onLogout }: SettingsPageProps) {
   return (
     <div className="standard-page settings-page">
       <PageHeading description="Conta, armazenamento local e conexão MCP do Study Flow." eyebrow="Aplicativo" title="Configurações" />
@@ -32,11 +35,19 @@ export function SettingsPage({ activityCount, subjectCount, email, planName, onL
           <div><strong>Dados privados</strong><p>Banco e uploads permanecem neste computador, isolados pelo usuário autenticado.</p></div>
           <span className="settings-state">Protegido</span>
         </div>
-        <div className="settings-row">
-          <span className="settings-icon"><Cable size={19} /></span>
-          <div><strong>ChatGPT Business via MCP</strong><p>Somente o servidor MCP pode ser exposto por HTTPS; o app e o SQLite continuam locais.</p></div>
-          <span className="settings-state">OAuth 2.1</span>
-        </div>
+        {role === "admin" ? (
+          <Link className="settings-row settings-row--link" href="/admin/chatgpt">
+            <span className="settings-icon"><Cable size={19} /></span>
+            <div><strong>ChatGPT Business via MCP</strong><p>Configure endpoints, OAuth, diagnósticos e clientes autorizados.</p></div>
+            <span className="settings-state">Configurar</span>
+          </Link>
+        ) : (
+          <div className="settings-row">
+            <span className="settings-icon"><Cable size={19} /></span>
+            <div><strong>ChatGPT Business via MCP</strong><p>A conexão é configurada e gerenciada pelo administrador.</p></div>
+            <span className="settings-state">Gerenciado</span>
+          </div>
+        )}
       </section>
 
       <section className="danger-zone">
