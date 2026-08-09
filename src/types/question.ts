@@ -26,7 +26,8 @@ export interface StudyQuestion {
   topicName?: string;
   subtopicText?: string;
   explanation?: string;
-  correctAlternative: string;
+  questionStatus?: "valid" | "annulled";
+  correctAlternative: string | null;
   year?: number;
   alternatives: QuestionAlternative[];
   lastAttempt?: QuestionAttemptInfo;
@@ -40,7 +41,8 @@ export interface QuestionDraft {
   topicId?: string;
   subtopicText?: string;
   explanation?: string;
-  correctAlternative: string;
+  questionStatus?: "valid" | "annulled";
+  correctAlternative: string | null;
   year?: number;
   alternatives: QuestionAlternative[];
 }

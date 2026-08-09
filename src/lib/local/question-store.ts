@@ -6,7 +6,8 @@ import type { ExerciseSession, QuestionDraft, QuestionFilters, StudyQuestion } f
 interface QuestionRow {
   id: string; source_id: string; source_name: string; question_number: number; statement: string;
   subject_id: string | null; subject_name: string | null; topic_id: string | null; topic_name: string | null;
-  subtopic_text: string | null; explanation: string | null; correct_alternative: string; year: number | null;
+  subtopic_text: string | null; explanation: string | null; question_status: StudyQuestion["questionStatus"];
+  correct_alternative: string | null; year: number | null;
 }
 interface AlternativeRow { id: string; question_id: string; label: string; text: string; sort_order: number }
 interface AttemptRow { id: string; question_id: string; correct: number; selected_alternative: string; answered_at: string }
@@ -26,7 +27,8 @@ export interface NamedQuestionDraft {
   topic?: string;
   subtopic?: string;
   explanation?: string;
-  correctAlternative: string;
+  questionStatus?: "valid" | "annulled";
+  correctAlternative: string | null;
   year?: number;
   alternatives: Array<{ label: string; text: string; sortOrder?: number }>;
 }
@@ -65,6 +67,7 @@ export class LocalQuestionStore {
         topicName: row.topic_name ?? undefined,
         subtopicText: row.subtopic_text ?? undefined,
         explanation: row.explanation ?? undefined,
+        questionStatus: row.question_status,
         correctAlternative: row.correct_alternative,
         year: row.year ?? undefined,
         alternatives: alternatives.filter((item) => item.question_id === row.id).map((item) => ({ id: item.id, label: item.label, text: item.text, sortOrder: item.sort_order })),
@@ -88,15 +91,22 @@ export class LocalQuestionStore {
     const source = database.prepare("SELECT 1 FROM sources WHERE id = ? AND user_id = ?").get(draft.sourceId, this.userId);
     if (!source) throw new Error("Fonte não encontrada.");
     if (!draft.statement.trim() || !draft.alternatives.length) throw new Error("Enunciado e alternativas são obrigatórios.");
+    const questionStatus = draft.questionStatus ?? "valid";
     const labels = new Set(draft.alternatives.map((item) => item.label));
-    if (!labels.has(draft.correctAlternative)) throw new Error("A alternativa correta deve existir na lista de alternativas.");
+    if (questionStatus === "valid") {
+      if (!draft.correctAlternative || !["A", "B", "C", "D", "E"].includes(draft.correctAlternative) || !labels.has(draft.correctAlternative)) {
+        throw new Error("Questões válidas exigem uma alternativa correta A, B, C, D ou E presente na lista.");
+      }
+    } else if (draft.correctAlternative !== null) {
+      throw new Error("Questões anuladas devem ter correctAlternative=null.");
+    }
     const id = newId(); const timestamp = nowIso();
     database.transaction(() => {
       database.prepare(`INSERT INTO questions (id, user_id, source_id, question_number, statement, subject_id,
-        topic_id, subtopic_text, explanation, correct_alternative, year, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        topic_id, subtopic_text, explanation, question_status, correct_alternative, year, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
         .run(id, this.userId, draft.sourceId, draft.questionNumber, draft.statement.trim(), draft.subjectId ?? null,
-          draft.topicId ?? null, draft.subtopicText ?? null, draft.explanation ?? null, draft.correctAlternative, draft.year ?? null, timestamp, timestamp);
+          draft.topicId ?? null, draft.subtopicText ?? null, draft.explanation ?? null, questionStatus, draft.correctAlternative, draft.year ?? null, timestamp, timestamp);
       const insert = database.prepare(`INSERT INTO question_alternatives
         (id, user_id, question_id, label, text, sort_order, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)`);
       for (const alternative of draft.alternatives) insert.run(newId(), this.userId, id, alternative.label, alternative.text, alternative.sortOrder, timestamp);
@@ -117,6 +127,7 @@ export class LocalQuestionStore {
           topicId: taxonomy.topicId,
           subtopicText: draft.subtopic,
           explanation: draft.explanation,
+          questionStatus: draft.questionStatus,
           correctAlternative: draft.correctAlternative,
           year: draft.year,
           alternatives: draft.alternatives.map((item, index) => ({ ...item, sortOrder: item.sortOrder ?? index })),
@@ -130,7 +141,7 @@ export class LocalQuestionStore {
     if (!questionIds.length) throw new Error("Selecione ao menos uma questão.");
     const database = getDatabase();
     const placeholders = questionIds.map(() => "?").join(",");
-    const count = (database.prepare(`SELECT COUNT(*) count FROM questions WHERE user_id = ? AND id IN (${placeholders})`).get(this.userId, ...questionIds) as { count: number }).count;
+    const count = (database.prepare(`SELECT COUNT(*) count FROM questions WHERE user_id = ? AND question_status = 'valid' AND id IN (${placeholders})`).get(this.userId, ...questionIds) as { count: number }).count;
     if (count !== questionIds.length) throw new Error("Uma ou mais questões não foram encontradas.");
     if (activityId && !database.prepare("SELECT 1 FROM activities WHERE id = ? AND user_id = ?").get(activityId, this.userId)) throw new Error("Atividade não encontrada.");
     const id = newId(); const timestamp = nowIso();
@@ -174,11 +185,12 @@ export class LocalQuestionStore {
     return database.transaction(() => {
       const session = database.prepare("SELECT * FROM exercise_sessions WHERE id = ? AND user_id = ?").get(sessionId, this.userId) as SessionRow | undefined;
       if (!session || session.status !== "in_progress") throw new Error("Sessão não encontrada ou já finalizada.");
-      const item = database.prepare(`SELECT esq.*, q.correct_alternative FROM exercise_session_questions esq
+      const item = database.prepare(`SELECT esq.*, q.correct_alternative, q.question_status FROM exercise_session_questions esq
         JOIN questions q ON q.id = esq.question_id AND q.user_id = esq.user_id
-        WHERE esq.session_id = ? AND esq.user_id = ? AND esq.position = ?`).get(sessionId, this.userId, session.current_index) as (SessionQuestionRow & { correct_alternative: string }) | undefined;
+        WHERE esq.session_id = ? AND esq.user_id = ? AND esq.position = ?`).get(sessionId, this.userId, session.current_index) as (SessionQuestionRow & { correct_alternative: string | null; question_status: "valid" | "annulled" }) | undefined;
       if (!item) throw new Error("Questão atual não encontrada.");
       if (item.selected_alternative !== null) throw new Error("Esta questão já foi respondida.");
+      if (item.question_status === "annulled" || !item.correct_alternative) throw new Error("Questões anuladas não entram em sessões de desempenho.");
       const validAlternative = database.prepare("SELECT 1 FROM question_alternatives WHERE question_id = ? AND user_id = ? AND label = ?").get(item.question_id, this.userId, selectedAlternative);
       if (!validAlternative) throw new Error("Alternativa inválida.");
       const correct = selectedAlternative === item.correct_alternative;

@@ -10,7 +10,7 @@ function questionPriority(question: StudyQuestion) {
  * Stable tie-breakers make this function straightforward to unit test later.
  */
 export function selectQuestions(questions: StudyQuestion[], amount: number): StudyQuestion[] {
-  const unique = [...new Map(questions.map((question) => [question.id, question])).values()];
+  const unique = [...new Map(questions.filter((question) => question.questionStatus !== "annulled").map((question) => [question.id, question])).values()];
   return unique
     .sort((a, b) => (
       questionPriority(a) - questionPriority(b)

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   CalendarDays,
   ChartNoAxesCombined,
@@ -15,9 +15,12 @@ import {
   UsersRound,
   Bot,
   Sparkles,
+  LogOut,
+  UserRound,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import { useAuthUser } from "@/hooks/use-auth-user";
+import { signOut } from "@/lib/auth/auth-service";
 
 const navItems = [
   { label: "Hoje", href: "/hoje", icon: Clock3 },
@@ -26,6 +29,7 @@ const navItems = [
   { label: "Desempenho", href: "/desempenho", icon: ChartNoAxesCombined },
   { label: "Matérias", href: "/materias", icon: Layers3 },
   { label: "Provas", href: "/provas", icon: Files },
+  { label: "Usar com ChatGPT", href: "/chatgpt", icon: Bot },
   { label: "Configurações", href: "/configuracoes", icon: Settings2 },
 ];
 
@@ -41,7 +45,14 @@ interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const router = useRouter();
   const user = useAuthUser();
+
+  async function logout() {
+    await signOut();
+    router.replace("/login");
+    router.refresh();
+  }
 
   return (
     <div className="app-shell">
@@ -97,7 +108,20 @@ export function AppShell({ children }: AppShellProps) {
         <span className="local-badge"><span className="status-dot" /> Local</span>
       </div>
 
-      <main className="main-content">{children}</main>
+      <main className="main-content">
+        <header className="app-topbar">
+          <span />
+          <details className="user-menu">
+            <summary><span className="user-menu__avatar"><UserRound size={16} /></span><span><strong>{user?.displayName ?? "Usuário"}</strong><small>{user?.email}</small></span></summary>
+            <div className="user-menu__popover">
+              <div><strong>{user?.displayName ?? "Usuário"}</strong><small>{user?.role === "admin" ? "Administrador" : "Conta pessoal"}</small></div>
+              <Link href="/configuracoes"><Settings2 size={15} /> Configurações</Link>
+              <button onClick={() => void logout()} type="button"><LogOut size={15} /> Sair</button>
+            </div>
+          </details>
+        </header>
+        {children}
+      </main>
 
       <nav className="mobile-nav" aria-label="Navegação móvel">
         {navItems.map((item) => {

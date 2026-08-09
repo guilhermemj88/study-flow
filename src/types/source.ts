@@ -34,10 +34,13 @@ export interface StudySource {
   fileSize?: number;
   sourceUrl?: string;
   analysisStatus: AnalysisStatus;
+  isAnswerKey: boolean;
   createdAt: string;
   updatedAt: string;
   planSelection?: StudyPlanSourceSelection;
   questionCount: number;
+  validQuestionCount: number;
+  annulledQuestionCount: number;
   topicStats: SourceTopicStat[];
 }
 
@@ -48,6 +51,7 @@ export interface SourceDraft {
   year?: number;
   edition?: string;
   description?: string;
+  isAnswerKey?: boolean;
 }
 
 export interface SourceLibraryData {

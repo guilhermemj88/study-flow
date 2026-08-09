@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
-import { ArrowLeft, Download, Pencil, Plus, Save } from "lucide-react";
+import { ArrowLeft, Download, FileCheck2, Pencil, Plus, Save } from "lucide-react";
 import { useSourceLibrary } from "@/hooks/use-source-library";
 import { useStudyData } from "@/hooks/use-study-data";
 import { getQuestionRepository } from "@/lib/data/question-repository";
@@ -15,9 +15,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { LoadingScreen } from "@/components/ui/loading-screen";
 import { PageHeading } from "@/components/ui/page-heading";
 
-interface SourceDetailPageProps { sourceId: string }
-
-export function SourceDetailPage({ sourceId }: SourceDetailPageProps) {
+export function SourceDetailPage({ sourceId }: { sourceId: string }) {
   const library = useSourceLibrary();
   const study = useStudyData();
   const source = library.sources.find((item) => item.id === sourceId);
@@ -25,7 +23,7 @@ export function SourceDetailPage({ sourceId }: SourceDetailPageProps) {
   const [questionsReady, setQuestionsReady] = useState(false);
   const [showQuestionForm, setShowQuestionForm] = useState(false);
   const [showSourceForm, setShowSourceForm] = useState(false);
-  const [statId, setStatId] = useState<string | undefined>();
+  const [statId, setStatId] = useState<string>();
   const [statSubjectId, setStatSubjectId] = useState("");
   const [statTopicId, setStatTopicId] = useState("");
   const [statSubtopic, setStatSubtopic] = useState("");
@@ -38,11 +36,7 @@ export function SourceDetailPage({ sourceId }: SourceDetailPageProps) {
     let active = true;
     getQuestionRepository().load({ sourceIds: [sourceId] }, false).then((data) => {
       if (active) setQuestions(data.questions);
-    }).catch(() => {
-      if (active) setQuestions([]);
-    }).finally(() => {
-      if (active) setQuestionsReady(true);
-    });
+    }).catch(() => { if (active) setQuestions([]); }).finally(() => { if (active) setQuestionsReady(true); });
     return () => { active = false; };
   }, [sourceId]);
 
@@ -52,12 +46,8 @@ export function SourceDetailPage({ sourceId }: SourceDetailPageProps) {
   }
 
   function editStat(stat: SourceTopicStat) {
-    setStatId(stat.id);
-    setStatSubjectId(stat.subjectId);
-    setStatTopicId(stat.topicId ?? "");
-    setStatSubtopic(stat.subtopicText ?? "");
-    setStatCount(stat.questionCount);
-    setStatPercentage(stat.incidencePercentage);
+    setStatId(stat.id); setStatSubjectId(stat.subjectId); setStatTopicId(stat.topicId ?? "");
+    setStatSubtopic(stat.subtopicText ?? ""); setStatCount(stat.questionCount); setStatPercentage(stat.incidencePercentage);
   }
 
   async function saveStat(event: FormEvent<HTMLFormElement>) {
@@ -65,10 +55,11 @@ export function SourceDetailPage({ sourceId }: SourceDetailPageProps) {
     if (!statSubjectId) { setStatError("Selecione uma matéria."); return; }
     setStatError("");
     try {
-      await getSourceRepository().saveTopicStat({ id: statId, sourceId, subjectId: statSubjectId, topicId: statTopicId || undefined, subtopicText: statSubtopic.trim() || undefined, questionCount: statCount, incidencePercentage: statPercentage });
+      await getSourceRepository().saveTopicStat({ id: statId, sourceId, subjectId: statSubjectId, topicId: statTopicId || undefined,
+        subtopicText: statSubtopic.trim() || undefined, questionCount: statCount, incidencePercentage: statPercentage });
       setStatId(undefined); setStatTopicId(""); setStatSubtopic(""); setStatCount(0); setStatPercentage(0);
       await library.reload();
-    } catch (caughtError) { setStatError(caughtError instanceof Error ? caughtError.message : "Não foi possível salvar a incidência."); }
+    } catch (error) { setStatError(error instanceof Error ? error.message : "Não foi possível salvar a incidência."); }
   }
 
   if (!library.isReady || !study.isReady || !questionsReady) return <LoadingScreen />;
@@ -76,20 +67,23 @@ export function SourceDetailPage({ sourceId }: SourceDetailPageProps) {
 
   const incidenceBaseCount = library.sources.filter((item) => item.planSelection?.useForIncidence).length;
   const incidenceQuestionBase = library.sources.filter((item) => item.planSelection?.useForIncidence).reduce((sum, item) => sum + item.questionCount, 0);
+  const headingDescription = `${source.institution || "Instituição não informada"}${source.year ? ` · ${source.year}` : ""} · ${source.questionCount} questões · ${source.validQuestionCount} válidas · ${source.annulledQuestionCount} anuladas`;
 
   return (
     <div className="standard-page source-detail-page">
       <Link className="back-link" href="/provas"><ArrowLeft size={15} /> Provas e fontes</Link>
-      <PageHeading action={<div className="heading-actions">{source.storagePath ? <button className="button button--ghost" onClick={() => void library.openSource(source)} type="button"><Download size={16} /> Abrir arquivo</button> : null}<button className="button button--ghost" onClick={() => setShowSourceForm(true)} type="button"><Pencil size={15} /> Editar</button><button className="button button--primary" onClick={() => setShowQuestionForm(true)} type="button"><Plus size={16} /> Adicionar questão</button></div>} description={`${source.institution || "Instituição não informada"}${source.year ? ` · ${source.year}` : ""} · ${source.questionCount} questões`} eyebrow={source.sourceType === "exam" ? "Prova" : source.sourceType === "edital" ? "Edital" : "Fonte"} title={source.name} />
+      <PageHeading action={<div className="heading-actions">{source.storagePath ? <button className="button button--ghost" onClick={() => void library.openSource(source)} type="button"><Download size={16} /> Abrir arquivo</button> : null}<button className="button button--ghost" onClick={() => setShowSourceForm(true)} type="button"><Pencil size={15} /> Editar</button>{!source.isAnswerKey ? <button className="button button--primary" onClick={() => setShowQuestionForm(true)} type="button"><Plus size={16} /> Adicionar questão</button> : null}</div>} description={headingDescription} eyebrow={source.isAnswerKey ? "Gabarito · referência" : source.sourceType === "exam" ? "Prova" : source.sourceType === "edital" ? "Edital" : "Fonte"} title={source.name} />
       {library.error ? <div className="page-error">{library.error}</div> : null}
 
-      <section className="panel-section source-questions-panel">
-        <div className="panel-section__heading"><div><h2>Questões cadastradas</h2><p>Cadastro manual disponível enquanto a análise automática não está ativa.</p></div><span>{questions.length} questões</span></div>
-        {questions.length ? <div className="compact-question-list">{questions.map((question) => <article key={question.id}><span>{question.questionNumber}</span><div><strong>{question.subjectName ?? "Sem matéria"}{question.topicName ? ` · ${question.topicName}` : ""}</strong><p>{question.statement}</p></div><small>Resposta {question.correctAlternative}</small></article>)}</div> : <EmptyState title="Nenhuma questão cadastrada" description="Adicione a primeira questão oficial desta fonte." />}
-      </section>
+      {source.isAnswerKey ? <section className="panel-section answer-key-reference"><FileCheck2 size={22} /><div><h2>Gabarito de referência</h2><p>Este arquivo pode ser consultado para confirmar respostas oficiais, mas não gera incidência nem entra como banco de questões independente.</p></div></section> : (
+        <section className="panel-section source-questions-panel">
+          <div className="panel-section__heading"><div><h2>Questões cadastradas</h2><p>Questões anuladas continuam na prova, identificadas sem alternativa correta.</p></div><span>{questions.length} questões</span></div>
+          {questions.length ? <div className="compact-question-list">{questions.map((question) => <article key={question.id}><span>{question.questionNumber}</span><div><strong>{question.subjectName ?? "Sem matéria"}{question.topicName ? ` · ${question.topicName}` : ""}</strong><p>{question.statement}</p></div><small className={question.questionStatus === "annulled" ? "question-annulled" : ""}>{question.questionStatus === "annulled" ? "Anulada" : `Resposta ${question.correctAlternative}`}</small></article>)}</div> : <EmptyState title="Nenhuma questão cadastrada" description="Adicione a primeira questão oficial desta prova." />}
+        </section>
+      )}
 
-      <section className="panel-section incidence-panel">
-        <div className="panel-section__heading"><div><h2>Incidência</h2><p>Base: {incidenceBaseCount} {incidenceBaseCount === 1 ? "fonte" : "fontes"} · {incidenceQuestionBase} questões.</p></div><span>Valores manuais</span></div>
+      {!source.isAnswerKey ? <section className="panel-section incidence-panel">
+        <div className="panel-section__heading"><div><h2>Incidência</h2><p>Base: {incidenceBaseCount} {incidenceBaseCount === 1 ? "fonte" : "fontes"} · {incidenceQuestionBase} questões, incluindo anuladas classificadas.</p></div><span>Valores manuais</span></div>
         {source.topicStats.length ? <div className="incidence-list">{source.topicStats.map((stat) => <button key={stat.id} onClick={() => editStat(stat)} type="button"><div><strong>{stat.subjectName}</strong><span>{stat.topicName ?? stat.subtopicText ?? "Geral"}</span></div><strong>{stat.incidencePercentage.toLocaleString("pt-BR")}%</strong><span>{stat.questionCount} questões</span></button>)}</div> : <p className="no-data-copy">Nenhuma incidência informada. Use o formulário abaixo.</p>}
         <form className="incidence-form" onSubmit={saveStat}>
           <label className="field"><span>Matéria</span><select onChange={(event) => { setStatSubjectId(event.target.value); setStatTopicId(""); }} required value={statSubjectId}><option value="">Selecione</option>{study.subjects.map((subject) => <option key={subject.id} value={subject.id}>{subject.name}</option>)}</select></label>
@@ -100,7 +94,7 @@ export function SourceDetailPage({ sourceId }: SourceDetailPageProps) {
           <button className="button button--primary" type="submit"><Save size={15} /> {statId ? "Atualizar" : "Adicionar"}</button>
         </form>
         {statError ? <p className="form-error">{statError}</p> : null}
-      </section>
+      </section> : null}
 
       {showQuestionForm ? <QuestionFormModal onClose={() => setShowQuestionForm(false)} onSubmit={async (draft) => { await getQuestionRepository().createQuestion(draft); await reloadQuestions(); await library.reload(); }} sourceId={source.id} sourceYear={source.year} subjects={study.subjects} /> : null}
       {showSourceForm ? <SourceFormModal onClose={() => setShowSourceForm(false)} onSubmit={async (draft) => { await library.updateSource(source.id, draft); }} source={source} /> : null}

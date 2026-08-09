@@ -46,7 +46,8 @@ export function QuestionsPage({ activityId, initialSubjectId = "", initialTopicI
   const topics = study.subjects.find((subject) => subject.id === subjectId)?.topicRecords ?? [];
   const years = [...new Set(allQuestions.flatMap((question) => question.year ? [question.year] : []))].sort((a, b) => b - a);
   const filteredQuestions = useMemo(() => allQuestions.filter((question) => (
-    selectedSourceIds.includes(question.sourceId)
+    question.questionStatus !== "annulled"
+    && selectedSourceIds.includes(question.sourceId)
     && (!subjectId || question.subjectId === subjectId)
     && (!topicId || question.topicId === topicId)
     && (!year || question.year === Number(year))

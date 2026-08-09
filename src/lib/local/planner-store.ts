@@ -27,7 +27,7 @@ interface SettingsRow {
   study_plan_id: string; availability_json: string; session_minutes: PlanSettings["sessionMinutes"];
   daily_limit_minutes: number; first_review_days: number; second_review_days: number;
   reinforcement_days: number; exercise_questions: PlanSettings["exerciseQuestions"];
-  last_incidence_signature: string | null; last_generated_at: string | null; exam_date: string | null;
+  last_incidence_signature: string | null; last_generated_at: string | null; configured_at: string | null; exam_date: string | null;
 }
 
 interface IncidenceRow {
@@ -155,6 +155,7 @@ export class LocalPlannerStore {
       secondReviewDays: row.second_review_days,
       reinforcementDays: row.reinforcement_days,
       exerciseQuestions: row.exercise_questions,
+      configuredAt: row.configured_at ?? undefined,
       lastGeneratedAt: row.last_generated_at ?? undefined,
     };
   }
@@ -179,12 +180,13 @@ export class LocalPlannerStore {
       throw new Error("Os intervalos devem crescer da primeira revisão até o reforço.");
     }
     const examDate = input.examDate === undefined ? current.examDate ?? null : input.examDate.trim() ? isoDate(input.examDate) : null;
+    const configuredAt = examDate ? nowIso() : null;
     const database = getDatabase();
     database.transaction(() => {
       database.prepare(`UPDATE study_plan_settings SET availability_json = ?, session_minutes = ?, daily_limit_minutes = ?,
-        first_review_days = ?, second_review_days = ?, reinforcement_days = ?, exercise_questions = ?, updated_at = ?
+        first_review_days = ?, second_review_days = ?, reinforcement_days = ?, exercise_questions = ?, configured_at = ?, updated_at = ?
         WHERE user_id = ? AND study_plan_id = ?`).run(JSON.stringify(availability), sessionMinutes, dailyLimitMinutes,
-        firstReviewDays, secondReviewDays, reinforcementDays, exerciseQuestions, nowIso(), this.userId, current.planId);
+        firstReviewDays, secondReviewDays, reinforcementDays, exerciseQuestions, configuredAt, nowIso(), this.userId, current.planId);
       database.prepare("UPDATE study_plans SET exam_date = ?, updated_at = ? WHERE id = ? AND user_id = ?")
         .run(examDate, nowIso(), current.planId, this.userId);
     })();
@@ -199,12 +201,14 @@ export class LocalPlannerStore {
       FROM source_topic_stats sts
       JOIN study_plan_sources pss ON pss.source_id = sts.source_id AND pss.user_id = sts.user_id
         AND pss.study_plan_id = ? AND pss.use_for_incidence = 1
+      JOIN sources src ON src.id = sts.source_id AND src.user_id = sts.user_id AND src.is_answer_key = 0
       JOIN subjects s ON s.id = sts.subject_id AND s.user_id = sts.user_id
       LEFT JOIN topics t ON t.id = sts.topic_id AND t.user_id = sts.user_id
       WHERE sts.user_id = ? ORDER BY s.name, t.name, sts.subtopic_text`).all(plan.id, this.userId) as IncidenceRow[];
     const sourceCount = new Set(rows.map((row) => row.source_id)).size;
     const classifiedQuestionCount = (database.prepare(`SELECT COUNT(*) AS total FROM questions q
       JOIN study_plan_sources pss ON pss.source_id = q.source_id AND pss.user_id = q.user_id
+      JOIN sources src ON src.id = q.source_id AND src.user_id = q.user_id AND src.is_answer_key = 0
       WHERE q.user_id = ? AND pss.study_plan_id = ? AND pss.use_for_incidence = 1
         AND EXISTS (SELECT 1 FROM source_topic_stats sts WHERE sts.user_id = q.user_id AND sts.source_id = q.source_id)`)
       .get(this.userId, plan.id) as { total: number }).total;
@@ -282,7 +286,7 @@ export class LocalPlannerStore {
     const incidence = this.incidenceData();
     const attempts = database.prepare(`SELECT q.subject_id, q.topic_id, q.subtopic_text, qa.correct, qa.error_reason, qa.answered_at
       FROM question_attempts qa JOIN questions q ON q.id = qa.question_id AND q.user_id = qa.user_id
-      WHERE qa.user_id = ? ORDER BY qa.answered_at DESC`).all(this.userId) as AttemptRow[];
+      WHERE qa.user_id = ? AND q.question_status = 'valid' ORDER BY qa.answered_at DESC`).all(this.userId) as AttemptRow[];
     const errors = database.prepare(`SELECT subject_id, topic_id, subtopic_text, error_count, error_reason, created_at
       FROM activity_error_details WHERE user_id = ? ORDER BY created_at DESC`).all(this.userId) as ErrorRow[];
     const scored = incidence.baseItems.map((item) => {
@@ -353,6 +357,25 @@ export class LocalPlannerStore {
     return capacity;
   }
 
+  private capacitySummary(startDate: string, endDate: string, settings: PlanSettings, schedulableMinutes: number) {
+    const start = new Date(`${startDate}T12:00:00Z`).getTime();
+    const end = new Date(`${endDate}T12:00:00Z`).getTime();
+    const daysRemaining = Math.max(0, Math.round((end - start) / 86_400_000));
+    const weeklyMinutes = Object.values(settings.availability)
+      .reduce((sum, minutes) => sum + Math.min(minutes, settings.dailyLimitMinutes), 0);
+    let totalAvailableMinutes = 0;
+    for (let current = startDate; current <= endDate; current = addDays(current, 1)) {
+      totalAvailableMinutes += Math.min(settings.availability[weekdayKey(current)], settings.dailyLimitMinutes);
+    }
+    return {
+      daysRemaining,
+      weeksRemaining: round(daysRemaining / 7, 1),
+      weeklyMinutes,
+      totalAvailableMinutes,
+      schedulableMinutes,
+    };
+  }
+
   preview(input: { startDate?: string } = {}): StudyPlanPreview {
     const settings = this.getSettings();
     const startDate = isoDate(input.startDate ?? new Date().toISOString().slice(0, 10));
@@ -361,7 +384,8 @@ export class LocalPlannerStore {
     const priorities = this.getPriorityTopics();
     const capacity = this.availableDates(startDate, endDate, settings);
     const totalSlots = [...capacity.values()].reduce((sum, value) => sum + value, 0);
-    const cycleCount = Math.floor(totalSlots / 4);
+    const capacitySummary = this.capacitySummary(startDate, endDate, settings, totalSlots * settings.sessionMinutes);
+    const cycleCount = totalSlots ? Math.max(1, Math.floor(totalSlots / 4)) : 0;
     const allocation = new Map<string, number>();
     for (let index = 0; index < cycleCount && priorities.length; index += 1) {
       let selected: PriorityTopic;
@@ -444,6 +468,11 @@ export class LocalPlannerStore {
     }
     const settingsRow = getDatabase().prepare("SELECT last_incidence_signature, last_generated_at FROM study_plan_settings WHERE user_id = ? AND study_plan_id = ?")
       .get(this.userId, settings.planId) as { last_incidence_signature: string | null; last_generated_at: string | null };
+    const activityBreakdown = activities.reduce((counts, activity) => {
+      counts[activity.type] += 1;
+      return counts;
+    }, { study: 0, exercise: 0, review: 0, reinforcement: 0 });
+    const minimumCoverageMinutes = priorities.length * 4 * settings.sessionMinutes;
     return {
       startDate,
       endDate,
@@ -453,6 +482,11 @@ export class LocalPlannerStore {
       topicCount: new Set(priorities.map((item) => `${item.subjectId}:${item.topicId}`)).size,
       totalMinutes: activities.reduce((sum, activity) => sum + activity.estimatedMinutes, 0),
       activityCount: activities.length,
+      estimatedSessions: activities.length,
+      activityBreakdown,
+      capacity: capacitySummary,
+      capacityInsufficient: capacitySummary.schedulableMinutes < minimumCoverageMinutes,
+      minimumCoverageMinutes,
       hasIncidenceData: incidence.sourceCount > 0 && priorities.length > 0,
       hasPerformanceHistory: priorities.some((item) => item.hasPerformanceHistory),
       incidenceChanged: Boolean(settingsRow.last_generated_at && settingsRow.last_incidence_signature !== incidence.signature),
@@ -525,7 +559,12 @@ export class LocalPlannerStore {
     return { preview, created, updated, removed, unchanged };
   }
 
-  generateStudyPlan(input: { startDate?: string } = {}) {
+  generateStudyPlan(input: { startDate?: string; confirmed?: boolean } = {}) {
+    const settings = this.getSettings();
+    if (input.confirmed !== true) throw new Error("Confirme explicitamente a prévia antes de gerar o plano.");
+    if (!settings.configuredAt || !settings.examDate) throw new Error("Configure a data da prova e sua disponibilidade antes de gerar o plano.");
+    const startDate = input.startDate ?? new Date().toISOString().slice(0, 10);
+    if (settings.examDate < startDate) throw new Error("A data da prova deve ser igual ou posterior ao início do plano.");
     return this.apply(this.preview(input));
   }
 

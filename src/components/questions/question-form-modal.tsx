@@ -23,6 +23,7 @@ export function QuestionFormModal({ sourceId, sourceYear, subjects, onClose, onS
   const [topicId, setTopicId] = useState("");
   const [subtopicText, setSubtopicText] = useState("");
   const [explanation, setExplanation] = useState("");
+  const [questionStatus, setQuestionStatus] = useState<"valid" | "annulled">("valid");
   const [correctAlternative, setCorrectAlternative] = useState("A");
   const [alternatives, setAlternatives] = useState<QuestionAlternative[]>(INITIAL_ALTERNATIVES);
   const [saving, setSaving] = useState(false);
@@ -31,8 +32,7 @@ export function QuestionFormModal({ sourceId, sourceYear, subjects, onClose, onS
 
   function addAlternative() {
     if (alternatives.length >= 5) return;
-    const label = String.fromCharCode(65 + alternatives.length);
-    setAlternatives((current) => [...current, { label, text: "", sortOrder: current.length }]);
+    setAlternatives((current) => [...current, { label: String.fromCharCode(65 + current.length), text: "", sortOrder: current.length }]);
   }
 
   function removeAlternative(index: number) {
@@ -44,24 +44,15 @@ export function QuestionFormModal({ sourceId, sourceYear, subjects, onClose, onS
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!statement.trim() || alternatives.some((item) => !item.text.trim())) {
-      setError("Preencha o enunciado e todas as alternativas.");
-      return;
-    }
-    setSaving(true);
-    setError("");
+    if (!statement.trim() || alternatives.some((item) => !item.text.trim())) { setError("Preencha o enunciado e todas as alternativas."); return; }
+    setSaving(true); setError("");
     try {
       await onSubmit({
-        sourceId,
-        questionNumber: number,
-        statement: statement.trim(),
-        subjectId: subjectId || undefined,
-        topicId: topicId || undefined,
-        subtopicText: subtopicText.trim() || undefined,
-        explanation: explanation.trim() || undefined,
-        correctAlternative,
-        year: sourceYear,
-        alternatives: alternatives.map((item) => ({ ...item, text: item.text.trim() })),
+        sourceId, questionNumber: number, statement: statement.trim(), subjectId: subjectId || undefined,
+        topicId: topicId || undefined, subtopicText: subtopicText.trim() || undefined,
+        explanation: explanation.trim() || undefined, questionStatus,
+        correctAlternative: questionStatus === "annulled" ? null : correctAlternative,
+        year: sourceYear, alternatives: alternatives.map((item) => ({ ...item, text: item.text.trim() })),
       });
       onClose();
     } catch (caughtError) {
@@ -70,7 +61,7 @@ export function QuestionFormModal({ sourceId, sourceYear, subjects, onClose, onS
   }
 
   return (
-    <Modal description="Cadastre uma questão oficial para usar nos exercícios." onClose={onClose} open size="large" title="Adicionar questão">
+    <Modal description="Cadastre uma questão oficial válida ou anulada para manter a prova completa." onClose={onClose} open size="large" title="Adicionar questão">
       <form className="question-form" onSubmit={handleSubmit}>
         <div className="form-grid">
           <label className="field"><span>Número</span><input min="1" onChange={(event) => setNumber(Number(event.target.value))} required type="number" value={number} /></label>
@@ -79,16 +70,15 @@ export function QuestionFormModal({ sourceId, sourceYear, subjects, onClose, onS
           <label className="field"><span>Subtema</span><input onChange={(event) => setSubtopicText(event.target.value)} placeholder="Opcional" value={subtopicText} /></label>
         </div>
         <label className="field"><span>Enunciado</span><textarea autoFocus onChange={(event) => setStatement(event.target.value)} required rows={5} value={statement} /></label>
+        <div className="question-status-selector"><button className={questionStatus === "valid" ? "active" : ""} onClick={() => setQuestionStatus("valid")} type="button">Questão válida</button><button className={questionStatus === "annulled" ? "active annulled" : ""} onClick={() => setQuestionStatus("annulled")} type="button">Anulada oficialmente</button></div>
         <div className="question-alternatives">
           <div className="question-alternatives__heading"><strong>Alternativas</strong>{alternatives.length < 5 ? <button className="button button--ghost button--small" onClick={addAlternative} type="button"><Plus size={14} /> Adicionar</button> : null}</div>
-          {alternatives.map((alternative, index) => (
-            <div className="alternative-edit-row" key={alternative.label}>
-              <label className="correct-radio" title="Marcar como correta"><input checked={correctAlternative === alternative.label} name="correct" onChange={() => setCorrectAlternative(alternative.label)} type="radio" /><span>{alternative.label}</span></label>
-              <input aria-label={`Texto da alternativa ${alternative.label}`} onChange={(event) => setAlternatives((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} value={alternative.text} />
-              <button aria-label={`Remover alternativa ${alternative.label}`} className="icon-button icon-button--danger" disabled={alternatives.length <= 2} onClick={() => removeAlternative(index)} type="button"><Trash2 size={14} /></button>
-            </div>
-          ))}
-          <small>Selecione o círculo da alternativa correta.</small>
+          {alternatives.map((alternative, index) => <div className="alternative-edit-row" key={alternative.label}>
+            <label className="correct-radio" title={questionStatus === "annulled" ? "Questão anulada não possui resposta correta" : "Marcar como correta"}><input checked={questionStatus === "valid" && correctAlternative === alternative.label} disabled={questionStatus === "annulled"} name="correct" onChange={() => setCorrectAlternative(alternative.label)} type="radio" /><span>{alternative.label}</span></label>
+            <input aria-label={`Texto da alternativa ${alternative.label}`} onChange={(event) => setAlternatives((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, text: event.target.value } : item))} value={alternative.text} />
+            <button aria-label={`Remover alternativa ${alternative.label}`} className="icon-button icon-button--danger" disabled={alternatives.length <= 2} onClick={() => removeAlternative(index)} type="button"><Trash2 size={14} /></button>
+          </div>)}
+          <small>{questionStatus === "annulled" ? "Nenhuma alternativa correta será registrada para esta questão." : "Selecione o círculo da alternativa correta."}</small>
         </div>
         <label className="field"><span>Explicação <em>opcional</em></span><textarea onChange={(event) => setExplanation(event.target.value)} rows={3} value={explanation} /></label>
         {error ? <p className="form-error">{error}</p> : null}

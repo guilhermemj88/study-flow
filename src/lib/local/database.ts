@@ -45,10 +45,17 @@ function applyMigrations(database: SqliteDatabase) {
   for (const filename of readdirSync(migrationsDirectory).filter((name) => name.endsWith(".sql")).sort()) {
     if (applied.get(filename)) continue;
     const sql = readFileSync(join(migrationsDirectory, filename), "utf8");
-    database.transaction(() => {
-      database.exec(sql);
-      record.run(filename, nowIso());
-    })();
+    database.pragma("foreign_keys = OFF");
+    try {
+      database.transaction(() => {
+        database.exec(sql);
+        const violations = database.pragma("foreign_key_check") as Array<Record<string, unknown>>;
+        if (violations.length) throw new Error(`A migration ${filename} deixou referências inválidas no banco.`);
+        record.run(filename, nowIso());
+      })();
+    } finally {
+      database.pragma("foreign_keys = ON");
+    }
   }
 }
 

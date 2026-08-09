@@ -79,7 +79,7 @@ test("incidência sozinha gera o plano-base sem exercícios respondidos", () => 
   assert.ok(pneumologia.incidenceWeight > reumatologia.incidenceWeight);
   assert.ok(pneumologia.priorityWeight > reumatologia.priorityWeight);
 
-  const result = planner.generateStudyPlan({ startDate: "2030-01-01" });
+  const result = planner.generateStudyPlan({ startDate: "2030-01-01", confirmed: true });
   assert.ok(result.created > 0);
   assert.ok(study.load().activities.every((activity) => activity.planningOrigin === "incidence"));
 });
@@ -279,7 +279,7 @@ test("nova incidência apenas avisa; recálculo preserva concluídas e não dupl
   const sourceId = addSource(account.id, "Prova inicial", [{ subject: "Direito", topic: "Civil", questionCount: 10, incidencePercentage: 100 }]);
   const planner = new LocalPlannerStore(account.id);
   planner.updateSettings({ examDate: "2030-02-28", availability: allDays(60), sessionMinutes: 30, dailyLimitMinutes: 60, firstReviewDays: 1, secondReviewDays: 2, reinforcementDays: 3 });
-  const generated = planner.generateStudyPlan({ startDate: "2030-01-01" });
+  const generated = planner.generateStudyPlan({ startDate: "2030-01-01", confirmed: true });
   assert.ok(generated.created > 0);
   const study = new LocalStudyStore(account.id);
   const completed = study.load().activities.find((activity) => activity.planningOrigin !== "manual")!;
@@ -326,6 +326,7 @@ test("planejador e ferramentas MCP mantêm isolamento por usuário", async () =>
   const alice = user("Planner Alice");
   const bob = user("Planner Bob");
   addSource(alice.id, "Fonte privada", [{ subject: "Direito", topic: "Penal", questionCount: 5, incidencePercentage: 100 }]);
+  new LocalPlannerStore(alice.id).updateSettings({ examDate: "2030-03-31", availability: allDays(60), sessionMinutes: 30, dailyLimitMinutes: 60 });
   assert.ok(new LocalPlannerStore(alice.id).getPriorityTopics().length > 0);
   assert.equal(new LocalPlannerStore(bob.id).getPriorityTopics().length, 0);
 
@@ -340,7 +341,7 @@ test("planejador e ferramentas MCP mantêm isolamento por usuário", async () =>
   }
   const priorityResult = await client.callTool({ name: "get_priority_topics", arguments: {} });
   assert.equal(priorityResult.isError, undefined);
-  const generated = await client.callTool({ name: "generate_study_plan", arguments: { startDate: "2030-01-01" } });
+  const generated = await client.callTool({ name: "generate_study_plan", arguments: { startDate: "2030-01-01", confirmed: true } });
   assert.equal(generated.isError, undefined);
   assert.ok(new LocalStudyStore(alice.id).load().activities.some((activity) => activity.planningOrigin !== "manual"));
   const recalculated = await client.callTool({ name: "recalculate_future_plan", arguments: { startDate: "2030-01-01" } });

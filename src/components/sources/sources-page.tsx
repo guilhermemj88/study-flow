@@ -27,7 +27,7 @@ export function SourcesPage() {
   if (!library.isReady) return <LoadingScreen />;
   const activeCount = library.sources.filter((source) => source.planSelection?.useForIncidence || source.planSelection?.useForQuestions).length;
   const incidenceCount = library.sources.filter((source) => source.planSelection?.useForIncidence).length;
-  const questionBase = library.sources.filter((source) => source.planSelection?.useForQuestions).reduce((sum, source) => sum + source.questionCount, 0);
+  const questionBase = library.sources.filter((source) => source.planSelection?.useForQuestions).reduce((sum, source) => sum + source.validQuestionCount, 0);
 
   async function saveSource(draft: SourceDraft, file?: File) {
     if (formSource && formSource !== "new") await library.updateSource(formSource.id, draft);
@@ -36,7 +36,7 @@ export function SourcesPage() {
 
   return (
     <div className="standard-page sources-page">
-      <PageHeading action={<button className="button button--primary" onClick={() => setFormSource("new")} type="button"><Plus size={17} /> Adicionar fonte</button>} description="Provas, editais e materiais que alimentam seu plano." eyebrow="Biblioteca oficial" title="Provas e fontes" />
+      <PageHeading action={<button className="button button--primary" onClick={() => setFormSource("new")} type="button"><Plus size={17} /> Adicionar fonte</button>} description="Provas, gabaritos, editais e materiais que alimentam seu plano." eyebrow="Biblioteca oficial" title="Provas e fontes" />
       {library.error ? <div className="page-error">{library.error}</div> : null}
 
       <section className="plan-sources-panel">
@@ -47,40 +47,34 @@ export function SourcesPage() {
         <div className="plan-source-list">
           {library.sources.map((source) => {
             const selection = source.planSelection ?? { useForIncidence: false, useForQuestions: false };
-            return (
-              <div className="plan-source-row" key={source.id}>
-                <div><strong>{source.name}</strong><span>{typeLabels[source.sourceType]}{source.year ? ` · ${source.year}` : ""}</span></div>
-                <label><input checked={selection.useForIncidence} onChange={(event) => void library.setPlanSelection(source.id, { useForIncidence: event.target.checked, useForQuestions: selection.useForQuestions })} type="checkbox" /><span><Check size={13} /> Incidência</span></label>
-                <label><input checked={selection.useForQuestions} onChange={(event) => void library.setPlanSelection(source.id, { useForIncidence: selection.useForIncidence, useForQuestions: event.target.checked })} type="checkbox" /><span><Check size={13} /> Questões</span></label>
-              </div>
-            );
+            return <div className="plan-source-row" key={source.id}>
+              <div><strong>{source.name}</strong><span>{source.isAnswerKey ? "Gabarito · referência" : typeLabels[source.sourceType]}{source.year ? ` · ${source.year}` : ""}</span></div>
+              <label title={source.isAnswerKey ? "Gabaritos não geram incidência" : undefined}><input checked={selection.useForIncidence} disabled={source.isAnswerKey} onChange={(event) => void library.setPlanSelection(source.id, { useForIncidence: event.target.checked, useForQuestions: selection.useForQuestions })} type="checkbox" /><span><Check size={13} /> Incidência</span></label>
+              <label title={source.isAnswerKey ? "Gabaritos são somente referência" : undefined}><input checked={selection.useForQuestions} disabled={source.isAnswerKey} onChange={(event) => void library.setPlanSelection(source.id, { useForIncidence: selection.useForIncidence, useForQuestions: event.target.checked })} type="checkbox" /><span><Check size={13} /> Questões</span></label>
+            </div>;
           })}
         </div>
-        <footer>Base atual: <strong>{incidenceCount} {incidenceCount === 1 ? "fonte" : "fontes"}</strong> para incidência · <strong>{questionBase} questões</strong> disponíveis</footer>
+        <footer>Base atual: <strong>{incidenceCount} {incidenceCount === 1 ? "fonte" : "fontes"}</strong> para incidência · <strong>{questionBase} questões válidas</strong> para exercícios</footer>
       </section>
 
       <section className="source-library">
         <div className="source-library__heading"><h2>Biblioteca</h2><span>{library.sources.length} {library.sources.length === 1 ? "fonte cadastrada" : "fontes cadastradas"}</span></div>
-        {library.sources.length ? <div className="source-list">{library.sources.map((source) => (
-          <article className="source-row" key={source.id}>
-            <span className={`source-icon source-icon--${source.sourceType}`}><FileText size={19} /></span>
-            <div className="source-main"><Link href={`/provas/${source.id}`}>{source.name}</Link><span>{typeLabels[source.sourceType]} · {source.institution || "Instituição não informada"}{source.year ? ` · ${source.year}` : ""} · incluída em {new Date(source.createdAt).toLocaleDateString("pt-BR")}</span></div>
-            <div className="source-meta"><strong>{source.questionCount}</strong><span>questões</span></div>
-            <div className="source-meta"><strong>{formatSize(source.fileSize)}</strong><span>{source.mimeType === "application/pdf" ? "PDF" : source.mimeType ? "Imagem" : "Manual"}</span></div>
-            <span className={`analysis-badge analysis-${source.analysisStatus}`}>{statusLabels[source.analysisStatus]}</span>
-            <div className="source-actions">
-              {source.storagePath ? <button aria-label="Abrir arquivo" className="icon-button" onClick={() => void library.openSource(source)} type="button"><Download size={16} /></button> : null}
-              <button aria-label="Editar fonte" className="icon-button" onClick={() => setFormSource(source)} type="button"><Pencil size={15} /></button>
-              <button aria-label="Remover fonte" className="icon-button icon-button--danger" onClick={() => setDeleteSource(source)} type="button"><Trash2 size={15} /></button>
-            </div>
-          </article>
-        ))}</div> : <EmptyState title="Nenhuma fonte cadastrada" description="Adicione uma prova, edital ou fonte manual para começar." />}
+        {library.sources.length ? <div className="source-list">{library.sources.map((source) => <article className="source-row" key={source.id}>
+          <span className={`source-icon source-icon--${source.sourceType}`}><FileText size={19} /></span>
+          <div className="source-main"><Link href={`/provas/${source.id}`}>{source.name}</Link><span>{source.isAnswerKey ? "Gabarito · referência oficial" : typeLabels[source.sourceType]} · {source.institution || "Instituição não informada"}{source.year ? ` · ${source.year}` : ""} · incluída em {new Date(source.createdAt).toLocaleDateString("pt-BR")}</span></div>
+          <div className="source-meta source-question-summary"><strong>{source.questionCount} questões</strong><span>{source.validQuestionCount} válidas{source.annulledQuestionCount ? ` · ${source.annulledQuestionCount} anuladas` : ""}</span></div>
+          <div className="source-meta"><strong>{formatSize(source.fileSize)}</strong><span>{source.mimeType === "application/pdf" ? "PDF" : source.mimeType ? "Imagem" : "Manual"}</span></div>
+          <span className={`analysis-badge analysis-${source.analysisStatus}`}>{source.isAnswerKey ? "Referência" : statusLabels[source.analysisStatus]}</span>
+          <div className="source-actions">
+            {source.storagePath ? <button aria-label="Abrir arquivo" className="icon-button" onClick={() => void library.openSource(source)} type="button"><Download size={16} /></button> : null}
+            <button aria-label="Editar fonte" className="icon-button" onClick={() => setFormSource(source)} type="button"><Pencil size={15} /></button>
+            <button aria-label="Remover fonte" className="icon-button icon-button--danger" onClick={() => setDeleteSource(source)} type="button"><Trash2 size={15} /></button>
+          </div>
+        </article>)}</div> : <EmptyState title="Nenhuma fonte cadastrada" description="Adicione uma prova, gabarito, edital ou fonte manual para começar." />}
       </section>
 
       {formSource ? <SourceFormModal key={formSource === "new" ? "new" : formSource.id} onClose={() => setFormSource(null)} onSubmit={saveSource} source={formSource === "new" ? undefined : formSource} /> : null}
-      {deleteSource ? (
-        <div className="dialog-backdrop" role="presentation" onMouseDown={() => setDeleteSource(null)}><section className="confirm-dialog" onMouseDown={(event) => event.stopPropagation()}><Trash2 size={22} /><h2>Remover {deleteSource.name}?</h2><p>Questões, incidências e o arquivo privado desta fonte também serão removidos.</p><div><button className="button button--ghost" onClick={() => setDeleteSource(null)} type="button">Cancelar</button><button className="button button--danger" onClick={() => { void library.removeSource(deleteSource).then(() => setDeleteSource(null)); }} type="button">Remover</button></div></section></div>
-      ) : null}
+      {deleteSource ? <div className="dialog-backdrop" role="presentation" onMouseDown={() => setDeleteSource(null)}><section className="confirm-dialog" onMouseDown={(event) => event.stopPropagation()}><Trash2 size={22} /><h2>Remover {deleteSource.name}?</h2><p>Questões, incidências e o arquivo privado desta fonte também serão removidos.</p><div><button className="button button--ghost" onClick={() => setDeleteSource(null)} type="button">Cancelar</button><button className="button button--danger" onClick={() => { void library.removeSource(deleteSource).then(() => setDeleteSource(null)); }} type="button">Remover</button></div></section></div> : null}
     </div>
   );
 }

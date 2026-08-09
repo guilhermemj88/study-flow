@@ -35,7 +35,7 @@ export function createStudyFlowMcpApp(host = process.env.MCP_HOST || "127.0.0.1"
     getDatabase().prepare(`INSERT INTO mcp_audit_log
       (id, user_id, client_id, tool_name, success, resource_id, error_message, created_at)
       VALUES (?, ?, ?, '__mcp_connection__', 1, NULL, NULL, ?)`).run(newId(), access.user.id, access.clientId, nowIso());
-    const server = createStudyFlowMcpServer(access.user.id, access.scopes);
+    const server = createStudyFlowMcpServer(access.user, access.scopes, access.clientId);
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     try {
       await server.connect(transport);

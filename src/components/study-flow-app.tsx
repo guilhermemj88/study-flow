@@ -113,12 +113,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
   }
 
   async function generatePlannerFromCalendar() {
-    if (plannerPreview?.hasGeneratedPlan) {
-      await getStudyRepository().recalculateFuturePlan(plannerPreview.startDate);
-    } else {
-      await getStudyRepository().generateStudyPlan(plannerPreview?.startDate);
-    }
-    await refreshPlannerAfterMutation();
+    setPlannerOpen(true);
   }
 
   function renderView() {

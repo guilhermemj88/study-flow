@@ -86,7 +86,7 @@ export class LocalStudyStore {
       JOIN questions q ON q.id = qa.question_id AND q.user_id = qa.user_id
       LEFT JOIN subjects s ON s.id = q.subject_id AND s.user_id = q.user_id
       LEFT JOIN topics t ON t.id = q.topic_id AND t.user_id = q.user_id
-      WHERE qa.user_id = ? ORDER BY qa.answered_at DESC`).all(this.userId) as AttemptSummaryRow[];
+      WHERE qa.user_id = ? AND q.question_status = 'valid' ORDER BY qa.answered_at DESC`).all(this.userId) as AttemptSummaryRow[];
 
     const subjects = subjectsRows.map<StudySubject>((subject) => {
       const records = topicRows.filter((topic) => topic.subject_id === subject.id);

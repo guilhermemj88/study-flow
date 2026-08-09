@@ -14,10 +14,11 @@ export interface PlanSettings {
   secondReviewDays: number;
   reinforcementDays: number;
   exerciseQuestions: 10 | 20 | 30 | 50;
+  configuredAt?: string;
   lastGeneratedAt?: string;
 }
 
-export type PlanSettingsUpdate = Omit<Partial<Omit<PlanSettings, "planId" | "lastGeneratedAt">>, "availability"> & {
+export type PlanSettingsUpdate = Omit<Partial<Omit<PlanSettings, "planId" | "configuredAt" | "lastGeneratedAt">>, "availability"> & {
   availability?: Partial<WeeklyAvailability>;
 };
 
@@ -69,12 +70,25 @@ export interface StudyPlanPreview {
   topicCount: number;
   totalMinutes: number;
   activityCount: number;
+  estimatedSessions: number;
+  activityBreakdown: Record<ActivityType, number>;
+  capacity: StudyCapacity;
+  capacityInsufficient: boolean;
+  minimumCoverageMinutes: number;
   hasIncidenceData: boolean;
   hasPerformanceHistory: boolean;
   incidenceChanged: boolean;
   hasGeneratedPlan: boolean;
   priorities: PriorityTopic[];
   activities: PlannedActivityPreview[];
+}
+
+export interface StudyCapacity {
+  daysRemaining: number;
+  weeksRemaining: number;
+  weeklyMinutes: number;
+  totalAvailableMinutes: number;
+  schedulableMinutes: number;
 }
 
 export interface PlanMutationResult {

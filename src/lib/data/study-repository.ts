@@ -14,7 +14,7 @@ export class StudyRepository {
   getPlanSettings() { return apiRequest<PlanSettings>("planner/settings"); }
   updatePlanSettings(settings: PlanSettingsUpdate) { return apiRequest<PlanSettings>("planner/settings", { method: "PUT", body: JSON.stringify(settings) }); }
   previewStudyPlan(startDate?: string) { return apiRequest<StudyPlanPreview>(`planner/preview${startDate ? `?startDate=${encodeURIComponent(startDate)}` : ""}`); }
-  generateStudyPlan(startDate?: string) { return apiRequest<PlanMutationResult>("planner/generate", { method: "POST", body: JSON.stringify({ startDate }) }); }
+  generateStudyPlan(startDate: string | undefined, confirmed: true) { return apiRequest<PlanMutationResult>("planner/generate", { method: "POST", body: JSON.stringify({ startDate, confirmed }) }); }
   recalculateFuturePlan(startDate?: string) { return apiRequest<PlanMutationResult>("planner/recalculate", { method: "POST", body: JSON.stringify({ startDate }) }); }
   getPriorityTopics() { return apiRequest<{ priorities: PriorityTopic[] }>("planner/priorities").then((data) => data.priorities); }
   getReviewRecommendations() { return apiRequest<{ recommendations: ReviewRecommendation[] }>("planner/recommendations").then((data) => data.recommendations); }

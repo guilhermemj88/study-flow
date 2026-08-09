@@ -19,6 +19,7 @@ export function SourceFormModal({ onClose, onSubmit, source }: SourceFormModalPr
   const [year, setYear] = useState(source?.year?.toString() ?? "");
   const [edition, setEdition] = useState(source?.edition ?? "");
   const [description, setDescription] = useState(source?.description ?? "");
+  const [isAnswerKey, setIsAnswerKey] = useState(source?.isAnswerKey ?? false);
   const [file, setFile] = useState<File>();
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -35,6 +36,7 @@ export function SourceFormModal({ onClose, onSubmit, source }: SourceFormModalPr
         year: year ? Number(year) : undefined,
         edition: edition.trim() || undefined,
         description: description.trim() || undefined,
+        isAnswerKey,
       }, source ? undefined : file);
       onClose();
     } catch (caughtError) {
@@ -63,6 +65,7 @@ export function SourceFormModal({ onClose, onSubmit, source }: SourceFormModalPr
           <label className="field"><span>Edição</span><input onChange={(event) => setEdition(event.target.value)} placeholder="2024/2025" value={edition} /></label>
         </div>
         <label className="field"><span>Observação <em>opcional</em></span><textarea onChange={(event) => setDescription(event.target.value)} placeholder="Contexto útil sobre esta fonte." rows={3} value={description} /></label>
+        <label className="source-kind-check"><input checked={isAnswerKey} onChange={(event) => setIsAnswerKey(event.target.checked)} type="checkbox" /><span><strong>Este arquivo é um gabarito</strong><small>Será usado apenas como referência oficial e não aumentará a amostra de incidência.</small></span></label>
         {error ? <p className="form-error">{error}</p> : null}
         <footer className="form-footer">
           <button className="button button--ghost" onClick={onClose} type="button">Cancelar</button>

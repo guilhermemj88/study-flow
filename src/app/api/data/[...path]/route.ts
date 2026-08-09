@@ -112,7 +112,7 @@ export async function POST(request: Request, context: RouteContext) {
       const input = await body<{ sessionQuestionId: string; attemptId: string; errorReason: Parameters<LocalQuestionStore["setErrorReason"]>[2] }>(request);
       questions.setErrorReason(input.sessionQuestionId, input.attemptId, input.errorReason); return new Response(null, { status: 204 });
     }
-    if (path[0] === "planner" && path[1] === "generate") return json(planner.generateStudyPlan(await body<{ startDate?: string }>(request)), 201);
+    if (path[0] === "planner" && path[1] === "generate") return json(planner.generateStudyPlan(await body<{ startDate?: string; confirmed?: boolean }>(request)), 201);
     if (path[0] === "planner" && path[1] === "recalculate") return json(planner.recalculateFuturePlan(await body<{ startDate?: string }>(request)));
     return json({ error: "Rota não encontrada." }, 404);
   } catch (error) { return failure(error); }
