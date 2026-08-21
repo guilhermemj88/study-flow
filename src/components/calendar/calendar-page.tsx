@@ -20,7 +20,8 @@ import {
   isToday,
   toDateKey,
 } from "@/lib/date-utils";
-import type { StudyActivity } from "@/types/activity";
+import { getStudyMethod } from "@/lib/study-methods";
+import type { StudyActivity, StudyPlan } from "@/types/activity";
 import { ActivityChip } from "@/components/calendar/activity-chip";
 import { EmptyState } from "@/components/ui/empty-state";
 import type { StudyPlanPreview } from "@/types/planner";
@@ -28,12 +29,16 @@ import type { StudyPlanPreview } from "@/types/planner";
 const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
 interface CalendarPageProps {
+  activePlan?: StudyPlan;
   activities: StudyActivity[];
+  onActivatePlan: (id: string) => Promise<void> | void;
   onCreateActivity: (date?: string) => void;
+  onCreatePlan: () => void;
   onOpenActivity: (activity: StudyActivity) => void;
   onOpenPlanner: () => void;
   onGeneratePlanner: () => Promise<void>;
   plannerPreview?: StudyPlanPreview | null;
+  plans: StudyPlan[];
 }
 
 function studyStreak(activities: StudyActivity[]): number {
@@ -52,13 +57,14 @@ function studyStreak(activities: StudyActivity[]): number {
   return streak;
 }
 
-export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onOpenPlanner, onGeneratePlanner, plannerPreview }: CalendarPageProps) {
+export function CalendarPage({ activePlan, activities, onActivatePlan, onCreateActivity, onCreatePlan, onOpenActivity, onOpenPlanner, onGeneratePlanner, plannerPreview, plans }: CalendarPageProps) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
   });
   const [generatingPlan, setGeneratingPlan] = useState(false);
   const [plannerError, setPlannerError] = useState<string | null>(null);
+  const method = getStudyMethod(activePlan?.studyMode ?? "advanced");
   const todayKey = toDateKey(new Date());
   const calendarDays = useMemo(() => getCalendarDays(currentMonth), [currentMonth]);
   const groupedActivities = useMemo(() => {
@@ -70,8 +76,10 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
     }
     for (const items of groups.values()) {
       items.sort((a, b) => {
-        if (a.status === "completed" && b.status !== "completed") return 1;
-        if (b.status === "completed" && a.status !== "completed") return -1;
+        const aFinal = a.status === "completed" || a.status === "not_done";
+        const bFinal = b.status === "completed" || b.status === "not_done";
+        if (aFinal && !bFinal) return 1;
+        if (bFinal && !aFinal) return -1;
         const priorityOrder = { critical: 0, high: 1, medium: 2, low: 3 };
         return priorityOrder[a.priority] - priorityOrder[b.priority];
       });
@@ -84,14 +92,14 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
     (activity) => activity.completedAt && toDateKey(new Date(activity.completedAt)) === todayKey,
   ).length;
   const pendingReviews = activities.filter(
-    (activity) => activity.type === "review" && activity.status !== "completed",
+    (activity) => activity.type === "review" && activity.status !== "completed" && activity.status !== "not_done",
   ).length;
   const monthActivityDays = calendarDays.filter(
     (day) => isSameMonth(day, currentMonth) && (groupedActivities.get(toDateKey(day))?.length ?? 0) > 0,
   );
-  const hasFutureActivities = activities.some((activity) => activity.date >= todayKey && activity.status !== "completed");
+  const hasFutureActivities = activities.some((activity) => activity.date >= todayKey && activity.status !== "completed" && activity.status !== "not_done");
   const showInitialPlanPrompt = Boolean(
-    plannerPreview?.hasIncidenceData && plannerPreview.activityCount > 0 && !hasFutureActivities,
+    method.capabilities.adaptivePlanner && plannerPreview?.hasIncidenceData && plannerPreview.activityCount > 0 && !hasFutureActivities,
   );
 
   async function generateInitialPlan() {
@@ -110,7 +118,10 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
     <div className="calendar-page">
       <header className="calendar-toolbar">
         <div className="month-heading">
-          <span className="page-eyebrow">Seu plano de estudos</span>
+          <span className="page-eyebrow calendar-plan-heading">
+            {activePlan?.name ?? "Seu plano de estudos"}
+            <span className={`study-mode-badge study-mode-badge--${method.mode}`}>{method.label}</span>
+          </span>
           <div>
             <h1>{formatMonth(currentMonth)}</h1>
             <div className="month-navigation">
@@ -120,9 +131,16 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
           </div>
         </div>
         <div className="calendar-toolbar__actions">
+          <label className="calendar-plan-select">
+            <span className="sr-only">Calendário ativo</span>
+            <select onChange={(event) => void onActivatePlan(event.target.value)} value={activePlan?.id ?? ""}>
+              {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {getStudyMethod(plan.studyMode).label}</option>)}
+            </select>
+          </label>
+          <button className="button button--ghost create-calendar-button" onClick={onCreatePlan} type="button"><Plus size={16} /> Novo calendário</button>
           <button className="button button--ghost" onClick={() => setCurrentMonth(new Date())} type="button">Hoje</button>
-          <button className="button button--ghost planner-button" onClick={onOpenPlanner} type="button"><Sparkles size={16} /> {plannerPreview?.hasGeneratedPlan ? "Recalcular plano" : "Gerar plano de estudos"}</button>
-          <button className="button button--primary" onClick={() => onCreateActivity()} type="button"><Plus size={17} /> Nova atividade</button>
+          {method.capabilities.adaptivePlanner ? <button className="button button--ghost planner-button" onClick={onOpenPlanner} type="button"><Sparkles size={16} /> {plannerPreview?.hasGeneratedPlan ? "Recalcular plano" : "Gerar plano de estudos"}</button> : null}
+          <button className="button button--primary" onClick={() => onCreateActivity()} type="button"><Plus size={17} /> {method.mode === "basic" ? "Adicionar estudo" : "Nova atividade"}</button>
         </div>
       </header>
 
@@ -137,7 +155,7 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
         </section>
       ) : null}
 
-      {plannerPreview?.incidenceChanged ? (
+      {method.capabilities.adaptivePlanner && plannerPreview?.incidenceChanged ? (
         <button className="calendar-incidence-notice" onClick={onOpenPlanner} type="button">
           <Sparkles size={16} />
           <span><strong>Novos dados de incidência disponíveis.</strong> Abra a prévia para recalcular apenas as atividades futuras.</span>
@@ -207,7 +225,7 @@ export function CalendarPage({ activities, onCreateActivity, onOpenActivity, onO
                 </div>
               </div>
             );
-          }) : <EmptyState title="Mês livre" description="Visualize seu plano por incidência ou adicione uma atividade manualmente." />}
+          }) : <EmptyState title="Mês livre" description={method.mode === "basic" ? "Adicione o conteúdo do seu cronograma e as revisões aparecerão aqui." : "Visualize seu plano por incidência ou adicione uma atividade manualmente."} />}
         </div>
       </section>
     </div>

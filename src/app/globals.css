@@ -3088,3 +3088,142 @@ textarea:focus-visible {
   .planner-capacity-card > div { border-right: 0; }
   .planner-steps { grid-template-columns: 22px auto minmax(12px,1fr) 22px auto; }
 }
+
+/* Modular study methods */
+.sr-only {
+  position: absolute;
+  overflow: hidden;
+  width: 1px;
+  height: 1px;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+}
+
+.calendar-plan-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.study-mode-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(125, 240, 166, 0.18);
+  border-radius: 999px;
+  background: rgba(125, 240, 166, 0.07);
+  color: var(--green);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 4px 7px;
+  text-transform: uppercase;
+}
+
+.study-mode-badge--advanced {
+  border-color: rgba(173, 140, 247, 0.2);
+  background: rgba(173, 140, 247, 0.08);
+  color: var(--purple);
+}
+
+.calendar-plan-select select {
+  min-width: 170px;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  outline: 0;
+  background: #0b0e0c;
+  color: #cbd3cd;
+  font-size: 10px;
+  padding: 0 9px;
+}
+
+.basic-review-notice {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(125, 240, 166, 0.16);
+  border-radius: 10px;
+  background: rgba(125, 240, 166, 0.055);
+  color: var(--green);
+  padding: 11px 13px;
+}
+
+.basic-review-notice > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: var(--text-muted);
+  font-size: 9px;
+}
+
+.basic-review-notice strong { color: #cde6d5; font-size: 10px; }
+
+.study-method-form {
+  display: flex;
+  overflow-y: auto;
+  max-height: calc(100vh - 123px);
+  flex-direction: column;
+  gap: 18px;
+  padding: 19px;
+}
+
+.study-method-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.study-method-card {
+  display: flex;
+  min-height: 195px;
+  cursor: pointer;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.015);
+  color: var(--text-muted);
+  padding: 16px;
+  text-align: left;
+  transition: 150ms ease;
+}
+
+.study-method-card:hover,
+.study-method-card--selected {
+  border-color: rgba(125, 240, 166, 0.3);
+  background: rgba(125, 240, 166, 0.055);
+}
+
+.study-method-card__icon {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--green-muted);
+  color: var(--green);
+}
+
+.study-method-card__title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: #e0e7e2;
+  font-size: 14px;
+}
+
+.study-method-card > span:not([class]) { font-size: 10px; line-height: 1.5; }
+.study-method-card small { color: #768078; font-size: 9px; line-height: 1.6; }
+.status-not-done { --chip-color: #7f8581; --chip-bg: rgba(127, 133, 129, 0.055); }
+.status-not-done .calendar-activity__topic,
+.status-not-done .agenda-chip__body,
+.status-not-done .today-activity__content { opacity: 0.55; }
+
+@media (max-width: 760px) {
+  .calendar-plan-select { width: 100%; }
+  .calendar-plan-select select { width: 100%; }
+  .calendar-toolbar__actions > .create-calendar-button { display: inline-flex; width: 100%; }
+  .study-method-grid { grid-template-columns: 1fr; }
+  .study-method-card { min-height: 165px; }
+  .study-method-form { max-height: calc(94vh - 70px); }
+}

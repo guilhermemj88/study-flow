@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/data/api-client";
-import type { ActivityDraft, ActivityResult, StudyActivity, StudyData, StudySubject } from "@/types/activity";
+import type { ActivityDraft, ActivityResult, StudyActivity, StudyData, StudyPlan, StudyPlanDraft, StudySubject } from "@/types/activity";
 import type { PlanMutationResult, PlanSettings, PlanSettingsUpdate, PriorityTopic, ReviewRecommendation, StudyPlanPreview } from "@/types/planner";
 
 export class StudyRepository {
@@ -8,6 +8,8 @@ export class StudyRepository {
   updateActivity(id: string, updates: Partial<StudyActivity>) { return apiRequest<void>(`activities/${id}`, { method: "PATCH", body: JSON.stringify(updates) }); }
   completeActivity(activity: StudyActivity, result: ActivityResult) { return apiRequest<void>(`activities/${activity.id}/complete`, { method: "POST", body: JSON.stringify(result) }); }
   deleteActivity(id: string) { return apiRequest<void>(`activities/${id}`, { method: "DELETE" }); }
+  createPlan(draft: StudyPlanDraft) { return apiRequest<StudyPlan>("plans", { method: "POST", body: JSON.stringify(draft) }); }
+  activatePlan(id: string) { return apiRequest<StudyPlan>(`plans/${id}/activate`, { method: "PUT" }); }
   createSubject(name: string) { return apiRequest<StudySubject>("subjects", { method: "POST", body: JSON.stringify({ name }) }); }
   updateSubject(subject: StudySubject, updates: Partial<StudySubject>) { return apiRequest<void>(`subjects/${subject.id}`, { method: "PATCH", body: JSON.stringify(updates) }); }
   deleteSubject(id: string) { return apiRequest<void>(`subjects/${id}`, { method: "DELETE" }); }

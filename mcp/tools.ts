@@ -67,8 +67,8 @@ export function createStudyFlowMcpServer(authenticated: string | LocalAuthUser, 
   const authenticatedUser = typeof authenticated === "string"
     ? resolveTargetUser({ authenticatedUser: { id: authenticated } })
     : resolveTargetUser({ authenticatedUser: authenticated });
-  const server = new McpServer({ name: "study-flow", version: "1.1.0" }, {
-    instructions: "Use os dados do usuário OAuth atual por padrão. Um administrador pode informar targetUserEmail ou targetUserId explicitamente; o servidor valida a role e audita a troca de contexto. A prévia do plano não grava atividades e a geração exige confirmação explícita.",
+  const server = new McpServer({ name: "study-flow", version: "1.2.0" }, {
+    instructions: "Use os dados do usuário OAuth atual por padrão. Um administrador pode informar targetUserEmail ou targetUserId explicitamente; o servidor valida a role e audita a troca de contexto. O plano ativo informa seu studyMode. No modo basic, criar um estudo agenda as revisões automaticamente; ferramentas do planejador adaptativo são exclusivas do modo advanced.",
   });
   const canWrite = scopes.includes("studyflow:write");
   const requireWrite = () => { if (!canWrite) throw new Error("O token não possui o escopo studyflow:write."); };
@@ -279,12 +279,13 @@ export function createStudyFlowMcpServer(authenticated: string | LocalAuthUser, 
   }, input.sourceId, clientId));
 
   server.registerTool("create_activity", {
-    title: "Criar atividade", description: "Cria uma atividade no calendário do usuário alvo.",
+    title: "Criar atividade", description: "Cria uma atividade no calendário ativo. No modo basic, um estudo cria quatro revisões automáticas idempotentes.",
     inputSchema: {
       ...targetUserSchema, subject: z.string().min(1), topic: z.string().min(1),
-      type: z.enum(["study", "exercise", "review", "reinforcement"]), date, estimatedMinutes: z.number().int().positive(),
+      type: z.enum(["study", "exercise", "review", "reinforcement"]), date, estimatedMinutes: z.number().int().positive().default(30),
       questionCount: z.number().int().positive().optional(), priority: z.enum(["low", "medium", "high", "critical"]).default("medium"),
-      status: z.enum(["planned", "attention", "completed"]).default("planned"), notes: z.string().optional(),
+      status: z.enum(["planned", "attention", "completed", "not_done"]).default("planned"), notes: z.string().optional(),
+      subtopic: z.string().optional(), focusLabel: z.string().optional(),
     }, annotations: annotations.write,
   }, (input) => execute(authenticatedUser, "create_activity", input, ({ study }) => {
     requireWrite();
@@ -300,8 +301,8 @@ export function createStudyFlowMcpServer(authenticated: string | LocalAuthUser, 
       ...targetUserSchema, activityId: z.string().uuid(), subject: z.string().min(1).optional(), topic: z.string().min(1).optional(),
       type: z.enum(["study", "exercise", "review", "reinforcement"]).optional(), date: date.optional(),
       estimatedMinutes: z.number().int().positive().optional(), questionCount: z.number().int().positive().nullable().optional(),
-      priority: z.enum(["low", "medium", "high", "critical"]).optional(), status: z.enum(["planned", "attention", "completed"]).optional(),
-      notes: z.string().nullable().optional(),
+      priority: z.enum(["low", "medium", "high", "critical"]).optional(), status: z.enum(["planned", "attention", "completed", "not_done"]).optional(),
+      notes: z.string().nullable().optional(), subtopic: z.string().nullable().optional(), focusLabel: z.string().nullable().optional(),
     }, annotations: annotations.update,
   }, (input) => execute(authenticatedUser, "update_activity", input, ({ study }) => {
     requireWrite();

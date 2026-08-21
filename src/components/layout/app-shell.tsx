@@ -21,14 +21,21 @@ import {
 import type { ReactNode } from "react";
 import { useAuthUser } from "@/hooks/use-auth-user";
 import { signOut } from "@/lib/auth/auth-service";
+import { getStudyMethod } from "@/lib/study-methods";
+import type { StudyMethodCapabilities, StudyMode } from "@/types/study-method";
 
-const navItems = [
+const navItems: Array<{
+  label: string;
+  href: string;
+  icon: typeof CalendarDays;
+  capability?: keyof StudyMethodCapabilities;
+}> = [
   { label: "Hoje", href: "/hoje", icon: Clock3 },
   { label: "Calendário", href: "/calendario", icon: CalendarDays },
-  { label: "Questões", href: "/questoes", icon: CircleHelp },
-  { label: "Desempenho", href: "/desempenho", icon: ChartNoAxesCombined },
+  { label: "Questões", href: "/questoes", icon: CircleHelp, capability: "questions" },
+  { label: "Desempenho", href: "/desempenho", icon: ChartNoAxesCombined, capability: "performance" },
   { label: "Matérias", href: "/materias", icon: Layers3 },
-  { label: "Provas", href: "/provas", icon: Files },
+  { label: "Provas", href: "/provas", icon: Files, capability: "sources" },
   { label: "Usar com ChatGPT", href: "/chatgpt", icon: Bot },
   { label: "Configurações", href: "/configuracoes", icon: Settings2 },
 ];
@@ -41,12 +48,15 @@ const adminNavItems = [
 
 interface AppShellProps {
   children: ReactNode;
+  studyMode?: StudyMode;
 }
 
-export function AppShell({ children }: AppShellProps) {
+export function AppShell({ children, studyMode }: AppShellProps) {
   const pathname = usePathname();
   const router = useRouter();
   const user = useAuthUser();
+  const method = studyMode ? getStudyMethod(studyMode) : undefined;
+  const visibleNavItems = navItems.filter((item) => !item.capability || method?.capabilities[item.capability] !== false);
 
   async function logout() {
     await signOut();
@@ -64,7 +74,7 @@ export function AppShell({ children }: AppShellProps) {
 
         <nav className="sidebar-nav" aria-label="Navegação principal">
           <span className="nav-eyebrow">Planejamento</span>
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const active = pathname.startsWith(item.href) || (item.href === "/calendario" && pathname === "/");
             const Icon = item.icon;
             return (
@@ -124,7 +134,7 @@ export function AppShell({ children }: AppShellProps) {
       </main>
 
       <nav className="mobile-nav" aria-label="Navegação móvel">
-        {navItems.map((item) => {
+        {visibleNavItems.map((item) => {
           const active = pathname.startsWith(item.href) || (item.href === "/calendario" && pathname === "/");
           const Icon = item.icon;
           return (

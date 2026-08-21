@@ -1,6 +1,7 @@
 import { AlertCircle, ArrowRight, CheckCircle2, Clock3, Sparkles, TrendingUp } from "lucide-react";
-import { activityTypeLabels, errorReasonLabels, getVisualStatus, priorityLabels } from "@/lib/activity-meta";
+import { activityTypeLabels, errorReasonLabels, getActivityContentLabel, getVisualStatus, priorityLabels } from "@/lib/activity-meta";
 import { daysBetween, toDateKey } from "@/lib/date-utils";
+import { getReviewRuleLabel } from "@/lib/study-methods";
 import type { StudyActivity } from "@/types/activity";
 import { ActivityTypeIcon } from "@/components/activity/activity-type-icon";
 import { getActivityMeasure } from "@/components/calendar/activity-chip";
@@ -18,7 +19,8 @@ export function TodayPage({ activities, onOpenActivity, priorityTopics = [] }: T
   const todayKey = toDateKey(new Date());
   const relevantActivities = activities
     .filter((activity) => (
-      (activity.status !== "completed" && activity.date <= todayKey) || activity.date === todayKey
+      (activity.status !== "completed" && activity.status !== "not_done" && activity.date <= todayKey)
+      || (activity.date === todayKey && activity.status !== "not_done")
     ))
     .sort((a, b) => {
       if (a.status === "completed" && b.status !== "completed") return 1;
@@ -31,7 +33,7 @@ export function TodayPage({ activities, onOpenActivity, priorityTopics = [] }: T
     (activity) => activity.date < todayKey && activity.status !== "completed",
   ).length;
   const plannedMinutes = relevantActivities
-    .filter((activity) => activity.status !== "completed")
+    .filter((activity) => activity.status !== "completed" && activity.status !== "not_done")
     .reduce((sum, activity) => sum + activity.estimatedMinutes, 0);
   const todayPlan = activities.filter((activity) => activity.date === todayKey && activity.planningOrigin !== "manual");
   const planCounts = (["study", "review", "exercise", "reinforcement"] as const).map((type) => ({
@@ -89,12 +91,12 @@ export function TodayPage({ activities, onOpenActivity, priorityTopics = [] }: T
               <span className="today-activity__icon"><ActivityTypeIcon size={19} type={activity.type} /></span>
               <div className="today-activity__content">
                 <div className="today-activity__title-row">
-                  <div><span>{activity.subject}</span><h2>{activity.focusLabel ?? activity.topic}</h2></div>
+                <div><span>{activity.subject}</span><h2>{getActivityContentLabel(activity)}</h2></div>
                   {lateDays ? <span className="late-badge">{lateDays}d atrasada</span> : null}
                   {activity.status === "completed" ? <span className="complete-badge"><CheckCircle2 size={13} /> Concluída</span> : null}
                 </div>
                 <div className="today-activity__meta">
-                  <span>{activityTypeLabels[activity.type]}</span>
+                  <span>{activityTypeLabels[activity.type]}{getReviewRuleLabel(activity.reviewRule) ? ` · ${getReviewRuleLabel(activity.reviewRule)}` : ""}</span>
                   <span><Clock3 size={14} /> {getActivityMeasure(activity)}</span>
                   <span>Prioridade {priorityLabels[activity.priority].toLowerCase()}</span>
                 </div>

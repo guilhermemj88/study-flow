@@ -23,6 +23,8 @@ Stores locais com user_id obrigatório
 
 O ChatGPT faz a pesquisa e a interpretação. As ferramentas MCP apenas entregam dados locais autorizados ou persistem resultados estruturados. O projeto não chama a OpenAI API.
 
+O `studyMode` pertence ao plano ativo. As ferramentas avançadas do planejador recusam planos `basic`; `get_active_plan` expõe o modo e `list_calendar` retorna também os metadados das revisões. `create_activity` e `update_activity` foram mantidas como pontos de entrada compatíveis: ao criar um estudo em um plano `basic`, o mesmo serviço de domínio usado pela interface cria as quatro revisões idempotentes.
+
 ## Limites de rede
 
 - Next.js escuta localmente e não precisa ser publicado.

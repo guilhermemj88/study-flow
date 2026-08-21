@@ -1,4 +1,5 @@
 import { getDatabase, newId, nowIso } from "@/lib/local/database";
+import { buildBasicReviewSchedule, getStudyMethod } from "@/lib/study-methods";
 import type {
   ActivityDraft,
   ActivityResult,
@@ -7,12 +8,23 @@ import type {
   StudyActivity,
   StudyData,
   StudyPlan,
+  StudyPlanDraft,
   StudySubject,
 } from "@/types/activity";
+import type { ReviewRule, StudyMode } from "@/types/study-method";
+
+type SqliteDatabase = ReturnType<typeof getDatabase>;
 
 interface SubjectRow { id: string; name: string }
 interface TopicRow { id: string; subject_id: string; name: string }
-interface PlanRow { id: string; name: string; target_exam_name: string | null; exam_date: string | null }
+interface PlanRow {
+  id: string;
+  name: string;
+  target_exam_name: string | null;
+  exam_date: string | null;
+  study_mode: StudyMode;
+  active: number;
+}
 interface ActivityRow {
   id: string; study_plan_id: string | null; subject_id: string; topic_id: string;
   activity_type: StudyActivity["type"]; scheduled_date: string; estimated_minutes: number;
@@ -22,6 +34,8 @@ interface ActivityRow {
   planning_origin: StudyActivity["planningOrigin"]; focus_label: string | null; subtopic_text: string | null;
   sequence_key: string | null; sequence_step: string | null; adaptive_reason: string | null;
   planner_error_reason: ErrorReason | null; base_weight: number | null; adaptive_weight: number | null;
+  review_sequence: number | null; review_rule: ReviewRule | null;
+  deleted_at: string | null;
 }
 interface ResultRow {
   activity_id: string; actual_minutes: number | null; questions_answered: number | null;
@@ -40,6 +54,28 @@ interface AttemptSummaryRow {
 
 function parseArray<T>(value: string): T[] {
   try { return JSON.parse(value) as T[]; } catch { return []; }
+}
+
+function mapPlan(row: PlanRow): StudyPlan {
+  return {
+    id: row.id,
+    name: row.name,
+    targetExamName: row.target_exam_name ?? undefined,
+    examDate: row.exam_date ?? undefined,
+    studyMode: row.study_mode,
+    active: Boolean(row.active),
+  };
+}
+
+function brazilTodayKey() {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Sao_Paulo",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+  return `${value.year}-${value.month}-${value.day}`;
 }
 
 export function ensureSubjectAndTopic(userId: string, subjectName: string, topicName: string) {
@@ -72,14 +108,34 @@ export function ensureTaxonomyByNames(userId: string, subjectName?: string, topi
 export class LocalStudyStore {
   constructor(private readonly userId: string) {}
 
+  private planRow(planId?: string | null): PlanRow {
+    const row = getDatabase().prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active
+      FROM study_plans WHERE user_id = ? AND ${planId ? "id = ?" : "active = 1"} LIMIT 1`)
+      .get(...(planId ? [this.userId, planId] : [this.userId])) as PlanRow | undefined;
+    if (!row) throw new Error(planId ? "Calendário não encontrado." : "Nenhum calendário ativo foi encontrado.");
+    return row;
+  }
+
   load(): StudyData {
     const database = getDatabase();
     const subjectsRows = database.prepare("SELECT id, name FROM subjects WHERE user_id = ? ORDER BY name").all(this.userId) as SubjectRow[];
     const topicRows = database.prepare("SELECT id, subject_id, name FROM topics WHERE user_id = ? ORDER BY name").all(this.userId) as TopicRow[];
-    const planRow = database.prepare("SELECT id, name, target_exam_name, exam_date FROM study_plans WHERE user_id = ? AND active = 1 LIMIT 1").get(this.userId) as PlanRow | undefined;
-    const activityRows = database.prepare("SELECT * FROM activities WHERE user_id = ? ORDER BY scheduled_date, created_at").all(this.userId) as ActivityRow[];
-    const resultRows = database.prepare("SELECT * FROM activity_results WHERE user_id = ?").all(this.userId) as ResultRow[];
-    const errorRows = database.prepare("SELECT * FROM activity_error_details WHERE user_id = ?").all(this.userId) as ErrorDetailRow[];
+    const planRows = database.prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active
+      FROM study_plans WHERE user_id = ? ORDER BY active DESC, created_at, name`).all(this.userId) as PlanRow[];
+    const planRow = planRows.find((plan) => Boolean(plan.active));
+    const activityRows = planRow
+      ? database.prepare("SELECT * FROM activities WHERE user_id = ? AND study_plan_id = ? AND deleted_at IS NULL ORDER BY scheduled_date, created_at").all(this.userId, planRow.id) as ActivityRow[]
+      : [];
+    const resultRows = planRow
+      ? database.prepare(`SELECT results.* FROM activity_results results
+          JOIN activities activity ON activity.id = results.activity_id AND activity.user_id = results.user_id
+          WHERE results.user_id = ? AND activity.study_plan_id = ? AND activity.deleted_at IS NULL`).all(this.userId, planRow.id) as ResultRow[]
+      : [];
+    const errorRows = planRow
+      ? database.prepare(`SELECT details.* FROM activity_error_details details
+          JOIN activities activity ON activity.id = details.activity_id AND activity.user_id = details.user_id
+          WHERE details.user_id = ? AND activity.study_plan_id = ? AND activity.deleted_at IS NULL`).all(this.userId, planRow.id) as ErrorDetailRow[]
+      : [];
     const attemptRows = database.prepare(`SELECT qa.id, qa.activity_id, qa.correct, qa.answered_at,
       s.name AS subject_name, t.name AS topic_name
       FROM question_attempts qa
@@ -96,9 +152,10 @@ export class LocalStudyStore {
     const topicNames = new Map(topicRows.map((topic) => [topic.id, topic.name]));
     const results = new Map(resultRows.map((result) => [result.activity_id, result]));
     const activities = activityRows.map((activity) => this.mapActivity(activity, subjectNames, topicNames, results.get(activity.id), errorRows.filter((detail) => detail.activity_id === activity.id)));
-    const activePlan: StudyPlan | undefined = planRow ? { id: planRow.id, name: planRow.name, targetExamName: planRow.target_exam_name ?? undefined, examDate: planRow.exam_date ?? undefined } : undefined;
+    const plans = planRows.map(mapPlan);
+    const activePlan = plans.find((plan) => plan.active);
     const attemptSummaries: QuestionAttemptSummary[] = attemptRows.flatMap((attempt) => attempt.subject_name ? [{ id: attempt.id, activityId: attempt.activity_id ?? undefined, subject: attempt.subject_name, topic: attempt.topic_name ?? undefined, correct: Boolean(attempt.correct), answeredAt: attempt.answered_at }] : []);
-    return { activities, subjects, activePlan, attemptSummaries };
+    return { activities, subjects, activePlan, plans, attemptSummaries };
   }
 
   private mapActivity(row: ActivityRow, subjectNames: Map<string, string>, topicNames: Map<string, string>, result?: ResultRow, errorRows: ErrorDetailRow[] = []): StudyActivity {
@@ -117,6 +174,8 @@ export class LocalStudyStore {
       status: row.status,
       exerciseOrigin: row.exercise_origin ?? "manual",
       linkedStudyActivityId: row.linked_study_activity_id ?? undefined,
+      reviewSequence: row.review_sequence ?? undefined,
+      reviewRule: row.review_rule ?? undefined,
       planningOrigin: row.planning_origin ?? "manual",
       focusLabel: row.focus_label ?? undefined,
       subtopic: row.subtopic_text ?? undefined,
@@ -144,57 +203,187 @@ export class LocalStudyStore {
     };
   }
 
+  private syncBasicReviews(database: SqliteDatabase, original: {
+    id: string;
+    planId: string;
+    subjectId: string;
+    topicId: string;
+    date: string;
+    priority: StudyActivity["priority"];
+    focusLabel?: string | null;
+    subtopic?: string | null;
+  }) {
+    const timestamp = nowIso();
+    const existing = database.prepare(`SELECT id, status, review_sequence FROM activities
+      WHERE user_id = ? AND study_plan_id = ? AND linked_study_activity_id = ?
+        AND activity_type = 'review' AND review_sequence IS NOT NULL`)
+      .all(this.userId, original.planId, original.id) as Array<{ id: string; status: StudyActivity["status"]; review_sequence: number }>;
+    const bySequence = new Map(existing.map((review) => [review.review_sequence, review]));
+
+    for (const review of buildBasicReviewSchedule(original.date)) {
+      const current = bySequence.get(review.sequence);
+      if (current) {
+        if (current.status === "planned" || current.status === "attention") {
+          database.prepare(`UPDATE activities SET subject_id = ?, topic_id = ?, scheduled_date = ?, priority = ?,
+            focus_label = ?, subtopic_text = ?, review_rule = ?, updated_at = ?
+            WHERE id = ? AND user_id = ?`)
+            .run(original.subjectId, original.topicId, review.date, original.priority, original.focusLabel ?? null,
+              original.subtopic ?? null, review.rule, timestamp, current.id, this.userId);
+        }
+        continue;
+      }
+      database.prepare(`INSERT INTO activities (
+        id, user_id, study_plan_id, subject_id, topic_id, activity_type, scheduled_date,
+        estimated_minutes, question_count, priority, status, exercise_origin,
+        linked_study_activity_id, notes, completed_at, created_at, updated_at,
+        planning_origin, focus_label, subtopic_text, review_sequence, review_rule
+      ) VALUES (?, ?, ?, ?, ?, 'review', ?, 15, NULL, ?, 'planned', 'manual', ?, NULL, NULL, ?, ?, 'manual', ?, ?, ?, ?)`)
+        .run(newId(), this.userId, original.planId, original.subjectId, original.topicId, review.date,
+          original.priority, original.id, timestamp, timestamp, original.focusLabel ?? null,
+          original.subtopic ?? null, review.sequence, review.rule);
+    }
+  }
+
   createActivity(draft: ActivityDraft): StudyActivity {
     const database = getDatabase();
     const id = newId();
     const timestamp = nowIso();
     const created = database.transaction(() => {
       const { subject, topic } = ensureSubjectAndTopic(this.userId, draft.subject, draft.topic);
-      const planId = draft.planId ?? (database.prepare("SELECT id FROM study_plans WHERE user_id = ? AND active = 1 LIMIT 1").get(this.userId) as { id: string } | undefined)?.id;
+      const plan = this.planRow(draft.planId);
+      const method = getStudyMethod(plan.study_mode);
+      if (plan.study_mode === "basic" && draft.type !== "study" && draft.type !== "review") {
+        throw new Error("O modo Básico aceita apenas estudos e revisões.");
+      }
+      if (draft.linkedStudyActivityId) {
+        const linked = database.prepare("SELECT study_plan_id FROM activities WHERE id = ? AND user_id = ?")
+          .get(draft.linkedStudyActivityId, this.userId) as { study_plan_id: string | null } | undefined;
+        if (!linked || linked.study_plan_id !== plan.id) throw new Error("A atividade vinculada não pertence a este calendário.");
+      }
       database.prepare(`INSERT INTO activities (
         id, user_id, study_plan_id, subject_id, topic_id, activity_type, scheduled_date,
         estimated_minutes, question_count, priority, status, exercise_origin,
-        linked_study_activity_id, notes, completed_at, created_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-        .run(id, this.userId, planId ?? null, subject.id, topic.id, draft.type, draft.date, draft.estimatedMinutes, draft.questionCount ?? null, draft.priority, draft.status, draft.exerciseOrigin ?? "manual", draft.linkedStudyActivityId ?? null, draft.notes ?? null, draft.status === "completed" ? timestamp : null, timestamp, timestamp);
-      return { subject, topic, planId };
+        linked_study_activity_id, notes, completed_at, created_at, updated_at,
+        planning_origin, focus_label, subtopic_text, sequence_key, sequence_step,
+        adaptive_reason, planner_error_reason, base_weight, adaptive_weight,
+        review_sequence, review_rule
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+        .run(id, this.userId, plan.id, subject.id, topic.id, draft.type, draft.date, draft.estimatedMinutes,
+          draft.questionCount ?? null, draft.priority, draft.status, draft.exerciseOrigin ?? "manual",
+          draft.linkedStudyActivityId ?? null, draft.notes ?? null, draft.status === "completed" ? timestamp : null,
+          timestamp, timestamp, draft.planningOrigin ?? "manual", draft.focusLabel ?? null, draft.subtopic ?? null,
+          draft.sequenceKey ?? null, draft.sequenceStep ?? null, draft.adaptiveReason ?? null,
+          draft.plannerErrorReason ?? null, draft.baseWeight ?? null, draft.adaptiveWeight ?? null,
+          draft.reviewSequence ?? null, draft.reviewRule ?? null);
+      if (method.capabilities.automaticReviews && draft.type === "study" && !draft.reviewSequence) {
+        this.syncBasicReviews(database, {
+          id,
+          planId: plan.id,
+          subjectId: subject.id,
+          topicId: topic.id,
+          date: draft.date,
+          priority: draft.priority,
+          focusLabel: draft.focusLabel,
+          subtopic: draft.subtopic,
+        });
+      }
+      return { subject, topic, plan };
     })();
-    return { ...draft, id, planId: created.planId, subjectId: created.subject.id, topicId: created.topic.id, createdAt: timestamp, completedAt: draft.status === "completed" ? timestamp : undefined };
+    return {
+      ...draft,
+      id,
+      planId: created.plan.id,
+      subjectId: created.subject.id,
+      topicId: created.topic.id,
+      createdAt: timestamp,
+      completedAt: draft.status === "completed" ? timestamp : undefined,
+    };
   }
 
   updateActivity(id: string, updates: Partial<StudyActivity>) {
     const database = getDatabase();
-    const existing = database.prepare("SELECT * FROM activities WHERE id = ? AND user_id = ?").get(id, this.userId) as ActivityRow | undefined;
-    if (!existing) throw new Error("Atividade não encontrada.");
-    let subjectId = updates.subjectId ?? existing.subject_id;
-    let topicId = updates.topicId ?? existing.topic_id;
-    if (updates.subject || updates.topic) {
-      const currentSubject = database.prepare("SELECT name FROM subjects WHERE id = ? AND user_id = ?").get(existing.subject_id, this.userId) as { name: string };
-      const currentTopic = database.prepare("SELECT name FROM topics WHERE id = ? AND user_id = ?").get(existing.topic_id, this.userId) as { name: string };
-      const resolved = database.transaction(() => ensureSubjectAndTopic(this.userId, updates.subject ?? currentSubject.name, updates.topic ?? currentTopic.name))();
-      subjectId = resolved.subject.id;
-      topicId = resolved.topic.id;
-    }
-    const completedAt = updates.completedAt !== undefined
-      ? updates.completedAt
-      : updates.status === "completed" ? existing.completed_at ?? nowIso()
-        : updates.status ? null : existing.completed_at;
-    database.prepare(`UPDATE activities SET study_plan_id = ?, subject_id = ?, topic_id = ?, activity_type = ?,
-      scheduled_date = ?, estimated_minutes = ?, question_count = ?, priority = ?, status = ?, exercise_origin = ?,
-      linked_study_activity_id = ?, notes = ?, completed_at = ?, updated_at = ? WHERE id = ? AND user_id = ?`)
-      .run(updates.planId ?? existing.study_plan_id, subjectId, topicId, updates.type ?? existing.activity_type,
-        updates.date ?? existing.scheduled_date, updates.estimatedMinutes ?? existing.estimated_minutes,
-        updates.questionCount === undefined ? existing.question_count : updates.questionCount,
-        updates.priority ?? existing.priority, updates.status ?? existing.status, updates.exerciseOrigin ?? existing.exercise_origin,
-        updates.linkedStudyActivityId ?? existing.linked_study_activity_id, updates.notes === undefined ? existing.notes : updates.notes,
-        completedAt, nowIso(), id, this.userId);
+    database.transaction(() => {
+      const existing = database.prepare("SELECT * FROM activities WHERE id = ? AND user_id = ?").get(id, this.userId) as ActivityRow | undefined;
+      if (!existing) throw new Error("Atividade não encontrada.");
+      const plan = this.planRow(existing.study_plan_id);
+      const nextType = updates.type ?? existing.activity_type;
+      if (plan.study_mode === "basic" && nextType !== "study" && nextType !== "review") {
+        throw new Error("O modo Básico aceita apenas estudos e revisões.");
+      }
+      if (updates.linkedStudyActivityId) {
+        const linked = database.prepare("SELECT study_plan_id FROM activities WHERE id = ? AND user_id = ?")
+          .get(updates.linkedStudyActivityId, this.userId) as { study_plan_id: string | null } | undefined;
+        if (!linked || linked.study_plan_id !== plan.id) throw new Error("A atividade vinculada não pertence a este calendário.");
+      }
+      let subjectId = updates.subjectId ?? existing.subject_id;
+      let topicId = updates.topicId ?? existing.topic_id;
+      if (updates.subject || updates.topic) {
+        const currentSubject = database.prepare("SELECT name FROM subjects WHERE id = ? AND user_id = ?").get(existing.subject_id, this.userId) as { name: string };
+        const currentTopic = database.prepare("SELECT name FROM topics WHERE id = ? AND user_id = ?").get(existing.topic_id, this.userId) as { name: string };
+        const resolved = ensureSubjectAndTopic(this.userId, updates.subject ?? currentSubject.name, updates.topic ?? currentTopic.name);
+        subjectId = resolved.subject.id;
+        topicId = resolved.topic.id;
+      }
+      const nextStatus = updates.status ?? existing.status;
+      const completedAt = updates.completedAt !== undefined
+        ? updates.completedAt
+        : nextStatus === "completed" ? existing.completed_at ?? nowIso()
+          : updates.status ? null : existing.completed_at;
+      database.prepare(`UPDATE activities SET subject_id = ?, topic_id = ?, activity_type = ?,
+        scheduled_date = ?, estimated_minutes = ?, question_count = ?, priority = ?, status = ?, exercise_origin = ?,
+        linked_study_activity_id = ?, notes = ?, completed_at = ?, planning_origin = ?, focus_label = ?,
+        subtopic_text = ?, adaptive_reason = ?, planner_error_reason = ?, base_weight = ?, adaptive_weight = ?, updated_at = ?
+        WHERE id = ? AND user_id = ?`)
+        .run(subjectId, topicId, nextType, updates.date ?? existing.scheduled_date,
+          updates.estimatedMinutes ?? existing.estimated_minutes,
+          updates.questionCount === undefined ? existing.question_count : updates.questionCount,
+          updates.priority ?? existing.priority, nextStatus, updates.exerciseOrigin ?? existing.exercise_origin,
+          updates.linkedStudyActivityId ?? existing.linked_study_activity_id,
+          updates.notes === undefined ? existing.notes : updates.notes, completedAt,
+          updates.planningOrigin ?? existing.planning_origin, updates.focusLabel === undefined ? existing.focus_label : updates.focusLabel,
+          updates.subtopic === undefined ? existing.subtopic_text : updates.subtopic,
+          updates.adaptiveReason === undefined ? existing.adaptive_reason : updates.adaptiveReason,
+          updates.plannerErrorReason === undefined ? existing.planner_error_reason : updates.plannerErrorReason,
+          updates.baseWeight === undefined ? existing.base_weight : updates.baseWeight,
+          updates.adaptiveWeight === undefined ? existing.adaptive_weight : updates.adaptiveWeight,
+          nowIso(), id, this.userId);
+
+      const canRefreshReviews = getStudyMethod(plan.study_mode).capabilities.automaticReviews
+        && existing.activity_type === "study"
+        && existing.review_sequence === null
+        && existing.status !== "completed"
+        && existing.status !== "not_done"
+        && nextType === "study";
+      if (canRefreshReviews) {
+        this.syncBasicReviews(database, {
+          id,
+          planId: plan.id,
+          subjectId,
+          topicId,
+          date: updates.date ?? existing.scheduled_date,
+          priority: updates.priority ?? existing.priority,
+          focusLabel: updates.focusLabel === undefined ? existing.focus_label : updates.focusLabel,
+          subtopic: updates.subtopic === undefined ? existing.subtopic_text : updates.subtopic,
+        });
+      }
+    })();
   }
 
   completeActivity(activityId: string, result: ActivityResult) {
     const database = getDatabase();
-    const activity = database.prepare("SELECT subject_id, topic_id FROM activities WHERE id = ? AND user_id = ?").get(activityId, this.userId) as { subject_id: string; topic_id: string } | undefined;
+    const activity = database.prepare(`SELECT activity.subject_id, activity.topic_id, activity.study_plan_id,
+      plan.study_mode FROM activities activity
+      JOIN study_plans plan ON plan.id = activity.study_plan_id AND plan.user_id = activity.user_id
+      WHERE activity.id = ? AND activity.user_id = ?`).get(activityId, this.userId) as {
+        subject_id: string; topic_id: string; study_plan_id: string; study_mode: StudyMode;
+      } | undefined;
     if (!activity) throw new Error("Atividade não encontrada.");
     const timestamp = nowIso();
+    if (getStudyMethod(activity.study_mode).capabilities.simpleActivityCompletion) {
+      database.prepare("UPDATE activities SET status = 'completed', completed_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+        .run(timestamp, timestamp, activityId, this.userId);
+      return;
+    }
     database.transaction(() => {
       database.prepare("UPDATE activities SET status = 'completed', completed_at = ?, updated_at = ? WHERE id = ? AND user_id = ?").run(timestamp, timestamp, activityId, this.userId);
       database.prepare(`INSERT INTO activity_results (
@@ -222,8 +411,64 @@ export class LocalStudyStore {
   }
 
   deleteActivity(id: string) {
-    const info = getDatabase().prepare("DELETE FROM activities WHERE id = ? AND user_id = ?").run(id, this.userId);
-    if (!info.changes) throw new Error("Atividade não encontrada.");
+    const database = getDatabase();
+    database.transaction(() => {
+      const activity = database.prepare(`SELECT activity.id, activity.activity_type, activity.review_sequence,
+        plan.study_mode FROM activities activity
+        LEFT JOIN study_plans plan ON plan.id = activity.study_plan_id AND plan.user_id = activity.user_id
+        WHERE activity.id = ? AND activity.user_id = ?`).get(id, this.userId) as {
+          id: string; activity_type: StudyActivity["type"]; review_sequence: number | null; study_mode: StudyMode | null;
+        } | undefined;
+      if (!activity) throw new Error("Atividade não encontrada.");
+      if (activity.study_mode === "basic" && activity.activity_type === "study" && activity.review_sequence === null) {
+        database.prepare(`DELETE FROM activities WHERE user_id = ? AND linked_study_activity_id = ?
+          AND activity_type = 'review' AND status IN ('planned', 'attention') AND scheduled_date >= ?`)
+          .run(this.userId, id, brazilTodayKey());
+        const preservedHistory = database.prepare("SELECT 1 FROM activities WHERE user_id = ? AND linked_study_activity_id = ? LIMIT 1")
+          .get(this.userId, id);
+        if (preservedHistory) {
+          database.prepare("UPDATE activities SET deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+            .run(nowIso(), nowIso(), id, this.userId);
+          return;
+        }
+      } else if (activity.study_mode === "advanced") {
+        const linked = database.prepare("SELECT 1 FROM activities WHERE user_id = ? AND linked_study_activity_id = ? LIMIT 1")
+          .get(this.userId, id);
+        if (linked) throw new Error("A atividade ainda possui exercícios ou revisões vinculados.");
+      }
+      database.prepare("DELETE FROM activities WHERE id = ? AND user_id = ?").run(id, this.userId);
+    })();
+  }
+
+  createPlan(draft: StudyPlanDraft): StudyPlan {
+    const name = draft.name.trim();
+    if (name.length < 2) throw new Error("Informe um nome com pelo menos 2 caracteres.");
+    getStudyMethod(draft.studyMode);
+    const database = getDatabase();
+    const id = newId();
+    const timestamp = nowIso();
+    database.transaction(() => {
+      database.prepare("UPDATE study_plans SET active = 0, updated_at = ? WHERE user_id = ? AND active = 1")
+        .run(timestamp, this.userId);
+      database.prepare(`INSERT INTO study_plans (id, user_id, name, active, study_mode, created_at, updated_at)
+        VALUES (?, ?, ?, 1, ?, ?, ?)`)
+        .run(id, this.userId, name, draft.studyMode, timestamp, timestamp);
+    })();
+    return { id, name, studyMode: draft.studyMode, active: true };
+  }
+
+  activatePlan(id: string): StudyPlan {
+    const database = getDatabase();
+    const plan = this.planRow(id);
+    if (plan.active) return mapPlan(plan);
+    const timestamp = nowIso();
+    database.transaction(() => {
+      database.prepare("UPDATE study_plans SET active = 0, updated_at = ? WHERE user_id = ? AND active = 1")
+        .run(timestamp, this.userId);
+      database.prepare("UPDATE study_plans SET active = 1, updated_at = ? WHERE id = ? AND user_id = ?")
+        .run(timestamp, id, this.userId);
+    })();
+    return { ...mapPlan(plan), active: true };
   }
 
   createSubject(name: string): StudySubject {

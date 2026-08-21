@@ -1,10 +1,12 @@
+import type { ReviewRule, StudyMode } from "@/types/study-method";
+
 export const ACTIVITY_TYPES = ["study", "exercise", "review", "reinforcement"] as const;
 export type ActivityType = (typeof ACTIVITY_TYPES)[number];
 
 export const PRIORITIES = ["low", "medium", "high", "critical"] as const;
 export type ActivityPriority = (typeof PRIORITIES)[number];
 
-export type ActivityStatus = "planned" | "attention" | "completed";
+export type ActivityStatus = "planned" | "attention" | "completed" | "not_done";
 export type PerceivedDifficulty = "easy" | "normal" | "hard";
 
 export type StudyMethod = "class" | "reading" | "summary" | "flashcards" | "other";
@@ -58,6 +60,8 @@ export interface StudyActivity {
   notes?: string;
   exerciseOrigin?: ExerciseOrigin;
   linkedStudyActivityId?: string;
+  reviewSequence?: number;
+  reviewRule?: ReviewRule;
   planningOrigin?: PlanningOrigin;
   focusLabel?: string;
   subtopic?: string;
@@ -83,6 +87,7 @@ export interface StudyData {
   activities: StudyActivity[];
   subjects: StudySubject[];
   activePlan?: StudyPlan;
+  plans: StudyPlan[];
   attemptSummaries: QuestionAttemptSummary[];
 }
 
@@ -91,6 +96,13 @@ export interface StudyPlan {
   name: string;
   targetExamName?: string;
   examDate?: string;
+  studyMode: StudyMode;
+  active: boolean;
+}
+
+export interface StudyPlanDraft {
+  name: string;
+  studyMode: StudyMode;
 }
 
 export interface QuestionAttemptSummary {

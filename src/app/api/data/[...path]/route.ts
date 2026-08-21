@@ -3,7 +3,7 @@ import { LocalQuestionStore } from "@/lib/local/question-store";
 import { LocalSourceStore } from "@/lib/local/source-store";
 import { LocalStudyStore } from "@/lib/local/study-store";
 import { LocalPlannerStore } from "@/lib/local/planner-store";
-import type { ActivityDraft, ActivityResult, StudyActivity, StudySubject } from "@/types/activity";
+import type { ActivityDraft, ActivityResult, StudyActivity, StudyPlanDraft, StudySubject } from "@/types/activity";
 import type { QuestionDraft, QuestionFilters } from "@/types/question";
 import type { SourceDraft } from "@/types/source";
 import type { PlanSettingsUpdate } from "@/types/planner";
@@ -70,6 +70,7 @@ export async function POST(request: Request, context: RouteContext) {
     const questions = new LocalQuestionStore(user.id);
     const planner = new LocalPlannerStore(user.id);
     if (path[0] === "activities" && path.length === 1) return json(study.createActivity(await body<ActivityDraft>(request)), 201);
+    if (path[0] === "plans" && path.length === 1) return json(study.createPlan(await body<StudyPlanDraft>(request)), 201);
     if (path[0] === "activities" && path[1] && path[2] === "complete") {
       study.completeActivity(path[1], await body<ActivityResult>(request));
       if (planner.hasGeneratedPlan()) {
@@ -137,6 +138,9 @@ export async function PATCH(request: Request, context: RouteContext) {
 export async function PUT(request: Request, context: RouteContext) {
   try {
     const user = requireRequestUser(request); const path = (await context.params).path; const sources = new LocalSourceStore(user.id);
+    if (path[0] === "plans" && path[1] && path[2] === "activate") {
+      return json(new LocalStudyStore(user.id).activatePlan(path[1]));
+    }
     if (path[0] === "plan-sources" && path[1]) {
       const input = await body<{ planId: string; useForIncidence: boolean; useForQuestions: boolean }>(request);
       sources.setPlanSelection(path[1], input.planId, input); return new Response(null, { status: 204 });

@@ -49,8 +49,8 @@ export function createUser(input: { displayName: string; email: string; password
     database.prepare(`INSERT INTO users (id, email, password_hash, display_name, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, ?)`)
       .run(id, email, passwordHash(input.password), displayName, timestamp, timestamp);
-    database.prepare(`INSERT INTO study_plans (id, user_id, name, active, created_at, updated_at)
-      VALUES (?, ?, 'Meu plano', 1, ?, ?)`)
+    database.prepare(`INSERT INTO study_plans (id, user_id, name, active, study_mode, created_at, updated_at)
+      VALUES (?, ?, 'Meu plano', 1, 'advanced', ?, ?)`)
       .run(newId(), id, timestamp, timestamp);
   })();
   return { id, email, displayName, role: "user" };

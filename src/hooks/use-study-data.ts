@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getStudyRepository } from "@/lib/data/study-repository";
-import type { ActivityDraft, ActivityResult, StudyActivity, StudyData, StudySubject } from "@/types/activity";
+import type { ActivityDraft, ActivityResult, StudyActivity, StudyData, StudyPlanDraft, StudySubject } from "@/types/activity";
 
-const EMPTY_DATA: StudyData = { activities: [], subjects: [], attemptSummaries: [] };
+const EMPTY_DATA: StudyData = { activities: [], subjects: [], plans: [], attemptSummaries: [] };
 
 export function useStudyData() {
   const [data, setData] = useState<StudyData>(EMPTY_DATA);
@@ -39,13 +39,13 @@ export function useStudyData() {
     try {
       setError(null);
       const activity = await getStudyRepository().createActivity(draft);
-      setData((current) => ({ ...current, activities: [...current.activities, activity] }));
+      await reload();
       return activity;
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Não foi possível adicionar a atividade.");
       throw caughtError;
     }
-  }, []);
+  }, [reload]);
 
   const updateActivity = useCallback(async (id: string, updates: Partial<StudyActivity>) => {
     try {
@@ -73,12 +73,36 @@ export function useStudyData() {
     try {
       setError(null);
       await getStudyRepository().deleteActivity(id);
-      setData((current) => ({ ...current, activities: current.activities.filter((activity) => activity.id !== id) }));
+      await reload();
     } catch (caughtError) {
       setError(caughtError instanceof Error ? caughtError.message : "Não foi possível excluir a atividade.");
       throw caughtError;
     }
-  }, []);
+  }, [reload]);
+
+  const createPlan = useCallback(async (draft: StudyPlanDraft) => {
+    try {
+      setError(null);
+      const plan = await getStudyRepository().createPlan(draft);
+      await reload();
+      return plan;
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Não foi possível criar o calendário.");
+      throw caughtError;
+    }
+  }, [reload]);
+
+  const activatePlan = useCallback(async (id: string) => {
+    try {
+      setError(null);
+      const plan = await getStudyRepository().activatePlan(id);
+      await reload();
+      return plan;
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Não foi possível trocar de calendário.");
+      throw caughtError;
+    }
+  }, [reload]);
 
   const addSubject = useCallback(async (name: string) => {
     try {
@@ -124,6 +148,8 @@ export function useStudyData() {
     updateActivity,
     completeActivity,
     deleteActivity,
+    createPlan,
+    activatePlan,
     addSubject,
     updateSubject,
     deleteSubject,

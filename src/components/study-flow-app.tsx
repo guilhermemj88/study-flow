@@ -20,6 +20,8 @@ import { signOut } from "@/lib/auth/auth-service";
 import { getStudyRepository } from "@/lib/data/study-repository";
 import { StudyPlanModal } from "@/components/planner/study-plan-modal";
 import type { PriorityTopic, StudyPlanPreview } from "@/types/planner";
+import { getStudyMethod } from "@/lib/study-methods";
+import { StudyMethodModal } from "@/components/planner/study-method-modal";
 
 export type StudyFlowView = "calendar" | "today" | "performance" | "subjects" | "settings";
 
@@ -42,12 +44,15 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
     isReady,
     error,
     activePlan,
+    plans,
     attemptSummaries,
     reload,
     addActivity,
     updateActivity,
     completeActivity,
     deleteActivity,
+    createPlan,
+    activatePlan,
     addSubject,
     updateSubject,
     deleteSubject,
@@ -56,11 +61,14 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
   const [formState, setFormState] = useState<FormState | null>(null);
   const [completionActivityId, setCompletionActivityId] = useState<string | null>(null);
   const [plannerOpen, setPlannerOpen] = useState(false);
+  const [methodModalOpen, setMethodModalOpen] = useState(false);
   const [plannerPreview, setPlannerPreview] = useState<StudyPlanPreview | null>(null);
   const [priorityTopics, setPriorityTopics] = useState<PriorityTopic[]>([]);
+  const method = getStudyMethod(activePlan?.studyMode ?? "advanced");
 
   useEffect(() => {
     if (!isReady || (view !== "calendar" && view !== "today")) return;
+    if (!method.capabilities.adaptivePlanner) return;
     let active = true;
     if (view === "calendar") {
       getStudyRepository().previewStudyPlan().then((preview) => {
@@ -72,7 +80,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
       }).catch(() => undefined);
     }
     return () => { active = false; };
-  }, [activities, isReady, view]);
+  }, [activities, isReady, method.capabilities.adaptivePlanner, view]);
 
   const selectedActivity = useMemo(
     () => activities.find((activity) => activity.id === selectedActivityId) ?? null,
@@ -93,6 +101,11 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
   }
 
   async function submitCompletion(activity: StudyActivity, result: ActivityResult) {
+    if (method.capabilities.simpleActivityCompletion) {
+      await updateActivity(activity.id, { status: "completed" });
+      setCompletionActivityId(null);
+      return;
+    }
     await completeActivity(activity, result);
     if (activity.type === "study") {
       processStudyResult(activity, result);
@@ -150,29 +163,43 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
       default:
         return (
           <CalendarPage
+            activePlan={activePlan}
             activities={activities}
+            onActivatePlan={async (id) => {
+              await activatePlan(id);
+              setPlannerPreview(null);
+              setPriorityTopics([]);
+              setSelectedActivityId(null);
+            }}
             onCreateActivity={(date) => setFormState({ initialDate: date })}
+            onCreatePlan={() => setMethodModalOpen(true)}
             onOpenActivity={(activity) => setSelectedActivityId(activity.id)}
             onOpenPlanner={() => setPlannerOpen(true)}
             onGeneratePlanner={generatePlannerFromCalendar}
             plannerPreview={plannerPreview}
+            plans={plans}
           />
         );
     }
   }
 
   return (
-    <AppShell>
+    <AppShell studyMode={activePlan?.studyMode}>
       {error ? <div className="global-page-error" role="alert">{error}</div> : null}
       {renderView()}
 
       {selectedActivity ? (
         <ActivityDetailDrawer
           activity={selectedActivity}
+          allowLinkedExercises={method.capabilities.questions}
           key={selectedActivity.id}
           onClose={() => setSelectedActivityId(null)}
           linkedExerciseCount={activities.filter((activity) => activity.linkedStudyActivityId === selectedActivity.id).length}
           onComplete={() => {
+            if (method.capabilities.simpleActivityCompletion) {
+              void updateActivity(selectedActivity.id, { status: "completed" }).then(() => setSelectedActivityId(null));
+              return;
+            }
             if (selectedActivity.exerciseOrigin === "question_bank") {
               const params = new URLSearchParams({ activityId: selectedActivity.id });
               if (selectedActivity.subjectId) params.set("subjectId", selectedActivity.subjectId);
@@ -203,6 +230,9 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
             setSelectedActivityId(null);
           }}
           onEdit={() => setFormState({ activity: selectedActivity })}
+          onMarkNotDone={() => {
+            void updateActivity(selectedActivity.id, { status: "not_done" }).then(() => setSelectedActivityId(null));
+          }}
           onReschedule={(date) => updateActivity(selectedActivity.id, {
             date,
             status: selectedActivity.status === "completed" ? "completed" : "planned",
@@ -219,6 +249,7 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
           onClose={() => setFormState(null)}
           onSubmit={submitActivity}
           open
+          studyMode={activePlan?.studyMode ?? "advanced"}
           subjects={subjects}
         />
       ) : null}
@@ -233,11 +264,22 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
         />
       ) : null}
 
-      <StudyPlanModal
+      {method.capabilities.adaptivePlanner ? <StudyPlanModal
         initialPreview={plannerPreview}
         onApplied={refreshPlannerAfterMutation}
         onClose={() => setPlannerOpen(false)}
         open={plannerOpen}
+      /> : null}
+
+      <StudyMethodModal
+        onClose={() => setMethodModalOpen(false)}
+        onSubmit={async (draft) => {
+          await createPlan(draft);
+          setMethodModalOpen(false);
+          setPlannerPreview(null);
+          setPriorityTopics([]);
+        }}
+        open={methodModalOpen}
       />
     </AppShell>
   );

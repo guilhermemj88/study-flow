@@ -57,7 +57,7 @@ interface ErrorRow {
 interface PlannerActivityRow {
   id: string; subject_id: string; topic_id: string; activity_type: PlannedActivityPreview["type"];
   scheduled_date: string; estimated_minutes: number; question_count: number | null;
-  priority: ActivityPriority; status: "planned" | "attention" | "completed";
+  priority: ActivityPriority; status: "planned" | "attention" | "completed" | "not_done";
   planning_origin: "manual" | "incidence" | "performance"; focus_label: string | null;
   subtopic_text: string | null; sequence_key: string | null; sequence_step: string | null;
   adaptive_reason: string | null; planner_error_reason: ErrorReason | null;
@@ -122,10 +122,13 @@ function priorityFromWeight(weight: number, maximum: number, adaptive: boolean):
 export class LocalPlannerStore {
   constructor(private readonly userId: string) {}
 
-  private activePlan() {
-    const plan = getDatabase().prepare("SELECT id, exam_date FROM study_plans WHERE user_id = ? AND active = 1 LIMIT 1")
-      .get(this.userId) as { id: string; exam_date: string | null } | undefined;
+  private activePlan(allowBasic = false) {
+    const plan = getDatabase().prepare("SELECT id, exam_date, study_mode FROM study_plans WHERE user_id = ? AND active = 1 LIMIT 1")
+      .get(this.userId) as { id: string; exam_date: string | null; study_mode: "basic" | "advanced" } | undefined;
     if (!plan) throw new Error("Nenhum plano de estudos ativo foi encontrado.");
+    if (!allowBasic && plan.study_mode !== "advanced") {
+      throw new Error("O planejamento adaptativo está disponível apenas no modo Avançado.");
+    }
     return plan;
   }
 
@@ -509,7 +512,7 @@ export class LocalPlannerStore {
     database.transaction(() => {
       for (const activity of preview.activities) {
         const match = existing.find((row) => row.sequence_key === activity.sequenceKey && row.sequence_step === activity.sequenceStep);
-        if (match?.status === "completed" || (match && match.scheduled_date < preview.startDate)) { unchanged += 1; continue; }
+        if (match?.status === "completed" || match?.status === "not_done" || (match && match.scheduled_date < preview.startDate)) { unchanged += 1; continue; }
         const status = ["high", "critical"].includes(activity.priority) ? "attention" : "planned";
         if (match) {
           const changed = match.subject_id !== activity.subjectId || match.topic_id !== activity.topicId || match.activity_type !== activity.type
@@ -547,7 +550,7 @@ export class LocalPlannerStore {
         }
       }
       for (const row of existing) {
-        if (row.status === "completed" || row.scheduled_date < preview.startDate || !row.sequence_key || !row.sequence_step) continue;
+        if (row.status === "completed" || row.status === "not_done" || row.scheduled_date < preview.startDate || !row.sequence_key || !row.sequence_step) continue;
         if (!desiredKeys.has(`${row.sequence_key}:${row.sequence_step}`)) {
           database.prepare("DELETE FROM activities WHERE id = ? AND user_id = ?").run(row.id, this.userId);
           removed += 1;
@@ -573,6 +576,7 @@ export class LocalPlannerStore {
   }
 
   hasGeneratedPlan() {
+    if (this.activePlan(true).study_mode !== "advanced") return false;
     return Boolean(this.getSettings().lastGeneratedAt);
   }
 

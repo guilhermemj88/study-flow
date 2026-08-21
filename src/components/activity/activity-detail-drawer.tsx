@@ -4,6 +4,7 @@ import { useState } from "react";
 import {
   CalendarClock,
   CheckCircle2,
+  CircleOff,
   Clock3,
   Edit3,
   Hash,
@@ -16,33 +17,39 @@ import {
   activityTypeLabels,
   difficultyLabels,
   errorReasonLabels,
+  getActivityContentLabel,
   getVisualStatus,
   priorityLabels,
   studyMethodLabels,
   visualStatusLabels,
 } from "@/lib/activity-meta";
 import { formatShortDate } from "@/lib/date-utils";
+import { getReviewRuleLabel } from "@/lib/study-methods";
 import type { StudyActivity } from "@/types/activity";
 import { ActivityTypeIcon } from "@/components/activity/activity-type-icon";
 
 interface ActivityDetailDrawerProps {
   activity: StudyActivity;
+  allowLinkedExercises?: boolean;
   onClose: () => void;
   onComplete: () => void;
   onCreateLinkedExercise: () => void;
   onDelete: () => void;
   onEdit: () => void;
+  onMarkNotDone: () => void;
   onReschedule: (date: string) => void;
   linkedExerciseCount?: number;
 }
 
 export function ActivityDetailDrawer({
   activity,
+  allowLinkedExercises = true,
   onClose,
   onComplete,
   onCreateLinkedExercise,
   onDelete,
   onEdit,
+  onMarkNotDone,
   onReschedule,
   linkedExerciseCount = 0,
 }: ActivityDetailDrawerProps) {
@@ -51,11 +58,13 @@ export function ActivityDetailDrawer({
   const [newDate, setNewDate] = useState(activity.date);
   const visualStatus = getVisualStatus(activity);
   const result = activity.result;
+  const reviewLabel = getReviewRuleLabel(activity.reviewRule);
+  const contentLabel = getActivityContentLabel(activity);
 
   return (
     <div className="drawer-backdrop" role="presentation" onMouseDown={onClose}>
       <aside
-        aria-label={`Detalhes de ${activity.focusLabel ?? activity.topic}`}
+        aria-label={`Detalhes de ${contentLabel}`}
         aria-modal="true"
         className="activity-drawer"
         onMouseDown={(event) => event.stopPropagation()}
@@ -67,7 +76,7 @@ export function ActivityDetailDrawer({
           </div>
           <div className="drawer-title">
             <span>{activity.subject}</span>
-            <h2>{activity.focusLabel ?? activity.topic}</h2>
+            <h2>{contentLabel}</h2>
           </div>
           <button aria-label="Fechar detalhes" className="icon-button" onClick={onClose} type="button">
             <X size={19} />
@@ -83,8 +92,9 @@ export function ActivityDetailDrawer({
           <section className="detail-section">
             <h3>Detalhes</h3>
             <dl className="detail-list">
-              <div><dt><ActivityTypeIcon type={activity.type} size={15} /> Tipo</dt><dd>{activityTypeLabels[activity.type]}</dd></div>
+              <div><dt><ActivityTypeIcon type={activity.type} size={15} /> Tipo</dt><dd>{activityTypeLabels[activity.type]}{reviewLabel ? ` · ${reviewLabel}` : ""}</dd></div>
               <div><dt><CalendarClock size={15} /> Data</dt><dd>{formatShortDate(activity.date)}</dd></div>
+              {activity.subtopic ? <div><dt>Subtema</dt><dd>{activity.subtopic}</dd></div> : null}
               <div><dt><Clock3 size={15} /> Duração</dt><dd>{activity.estimatedMinutes} min</dd></div>
               {activity.questionCount ? <div><dt><Hash size={15} /> Questões</dt><dd>{activity.questionCount}</dd></div> : null}
               <div><dt>Prioridade</dt><dd><span className={`priority-pill priority-${activity.priority}`}>{priorityLabels[activity.priority]}</span></dd></div>
@@ -140,7 +150,7 @@ export function ActivityDetailDrawer({
             </section>
           ) : null}
 
-          {activity.type === "study" && activity.status === "completed" ? (
+          {allowLinkedExercises && activity.type === "study" && activity.status === "completed" ? (
             <section className="detail-section linked-exercises">
               <h3>Exercícios</h3>
               <p>{linkedExerciseCount ? `${linkedExerciseCount} ${linkedExerciseCount === 1 ? "exercício vinculado" : "exercícios vinculados"}` : "Nenhum exercício registrado"}</p>
@@ -178,12 +188,15 @@ export function ActivityDetailDrawer({
         </div>
 
         <footer className="drawer-actions">
-          {activity.status !== "completed" ? (
+          {activity.status !== "completed" && activity.status !== "not_done" ? (
             <button className="button button--primary drawer-primary-action" onClick={onComplete} type="button">
               <CheckCircle2 size={17} /> Concluir
             </button>
           ) : null}
           <div className="drawer-secondary-actions">
+            {activity.status !== "completed" && activity.status !== "not_done" ? (
+              <button className="button button--ghost" onClick={onMarkNotDone} type="button"><CircleOff size={16} /> Não realizada</button>
+            ) : null}
             <button className="button button--ghost" onClick={onEdit} type="button"><Edit3 size={16} /> Editar</button>
             <button className="button button--ghost" onClick={() => setShowReschedule(true)} type="button"><RotateCw size={16} /> Reagendar</button>
             <button aria-label="Excluir atividade" className="button button--icon-danger" onClick={() => setShowDelete(true)} type="button"><Trash2 size={17} /></button>

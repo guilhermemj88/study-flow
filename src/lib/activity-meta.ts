@@ -45,10 +45,11 @@ export const errorReasonLabels: Record<ErrorReason, string> = {
   other: "Outro",
 };
 
-export type VisualStatus = "on-track" | "attention" | "reinforcement" | "overdue" | "completed";
+export type VisualStatus = "on-track" | "attention" | "reinforcement" | "overdue" | "completed" | "not-done";
 
 export function getVisualStatus(activity: StudyActivity): VisualStatus {
   if (activity.status === "completed") return "completed";
+  if (activity.status === "not_done") return "not-done";
   if (isPastDate(activity.date)) return "overdue";
   if (activity.type === "reinforcement") return "reinforcement";
   if (activity.status === "attention" || ["high", "critical"].includes(activity.priority)) {
@@ -63,4 +64,10 @@ export const visualStatusLabels: Record<VisualStatus, string> = {
   reinforcement: "Reforço recomendado",
   overdue: "Atrasada",
   completed: "Concluída",
+  "not-done": "Não realizada",
 };
+
+export function getActivityContentLabel(activity: StudyActivity): string {
+  if (activity.focusLabel) return activity.focusLabel;
+  return activity.subtopic ? `${activity.topic} — ${activity.subtopic}` : activity.topic;
+}
