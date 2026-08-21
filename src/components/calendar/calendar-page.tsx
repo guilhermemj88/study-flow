@@ -24,6 +24,7 @@ import { getStudyMethod } from "@/lib/study-methods";
 import type { StudyActivity, StudyPlan } from "@/types/activity";
 import { ActivityChip } from "@/components/calendar/activity-chip";
 import { EmptyState } from "@/components/ui/empty-state";
+import { StudyPlanManager } from "@/components/planner/study-plan-manager";
 import type { StudyPlanPreview } from "@/types/planner";
 
 const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
@@ -32,10 +33,15 @@ interface CalendarPageProps {
   activePlan?: StudyPlan;
   activities: StudyActivity[];
   onActivatePlan: (id: string) => Promise<void> | void;
+  onArchivePlan: (id: string) => Promise<void>;
   onCreateActivity: (date?: string) => void;
   onCreatePlan: () => void;
+  onDeletePlan: (id: string) => Promise<void>;
+  onListArchivedPlans: () => Promise<StudyPlan[]>;
   onOpenActivity: (activity: StudyActivity) => void;
   onOpenPlanner: () => void;
+  onRenamePlan: (id: string, name: string) => Promise<void>;
+  onRestorePlan: (id: string) => Promise<void>;
   onGeneratePlanner: () => Promise<void>;
   plannerPreview?: StudyPlanPreview | null;
   plans: StudyPlan[];
@@ -57,7 +63,7 @@ function studyStreak(activities: StudyActivity[]): number {
   return streak;
 }
 
-export function CalendarPage({ activePlan, activities, onActivatePlan, onCreateActivity, onCreatePlan, onOpenActivity, onOpenPlanner, onGeneratePlanner, plannerPreview, plans }: CalendarPageProps) {
+export function CalendarPage({ activePlan, activities, onActivatePlan, onArchivePlan, onCreateActivity, onCreatePlan, onDeletePlan, onListArchivedPlans, onOpenActivity, onOpenPlanner, onRenamePlan, onRestorePlan, onGeneratePlanner, plannerPreview, plans }: CalendarPageProps) {
   const [currentMonth, setCurrentMonth] = useState(() => {
     const today = new Date();
     return new Date(today.getFullYear(), today.getMonth(), 1);
@@ -131,12 +137,16 @@ export function CalendarPage({ activePlan, activities, onActivatePlan, onCreateA
           </div>
         </div>
         <div className="calendar-toolbar__actions">
-          <label className="calendar-plan-select">
-            <span className="sr-only">Calendário ativo</span>
-            <select onChange={(event) => void onActivatePlan(event.target.value)} value={activePlan?.id ?? ""}>
-              {plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · {getStudyMethod(plan.studyMode).label}</option>)}
-            </select>
-          </label>
+          <StudyPlanManager
+            activePlan={activePlan}
+            onActivate={onActivatePlan}
+            onArchive={onArchivePlan}
+            onDelete={onDeletePlan}
+            onListArchived={onListArchivedPlans}
+            onRename={onRenamePlan}
+            onRestore={onRestorePlan}
+            plans={plans}
+          />
           <button className="button button--ghost create-calendar-button" onClick={onCreatePlan} type="button"><Plus size={16} /> Novo calendário</button>
           <button className="button button--ghost" onClick={() => setCurrentMonth(new Date())} type="button">Hoje</button>
           {method.capabilities.adaptivePlanner ? <button className="button button--ghost planner-button" onClick={onOpenPlanner} type="button"><Sparkles size={16} /> {plannerPreview?.hasGeneratedPlan ? "Recalcular plano" : "Gerar plano de estudos"}</button> : null}

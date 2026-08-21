@@ -104,6 +104,55 @@ export function useStudyData() {
     }
   }, [reload]);
 
+  const listArchivedPlans = useCallback(() => getStudyRepository().listArchivedPlans(), []);
+
+  const renamePlan = useCallback(async (id: string, name: string) => {
+    try {
+      setError(null);
+      const plan = await getStudyRepository().renamePlan(id, name);
+      await reload();
+      return plan;
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Não foi possível renomear o calendário.");
+      throw caughtError;
+    }
+  }, [reload]);
+
+  const archivePlan = useCallback(async (id: string) => {
+    try {
+      setError(null);
+      const plan = await getStudyRepository().archivePlan(id);
+      await reload();
+      return plan;
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Não foi possível arquivar o calendário.");
+      throw caughtError;
+    }
+  }, [reload]);
+
+  const restorePlan = useCallback(async (id: string) => {
+    try {
+      setError(null);
+      const plan = await getStudyRepository().restorePlan(id);
+      await reload();
+      return plan;
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Não foi possível restaurar o calendário.");
+      throw caughtError;
+    }
+  }, [reload]);
+
+  const deletePlan = useCallback(async (id: string) => {
+    try {
+      setError(null);
+      await getStudyRepository().deletePlan(id);
+      await reload();
+    } catch (caughtError) {
+      setError(caughtError instanceof Error ? caughtError.message : "Não foi possível excluir o calendário.");
+      throw caughtError;
+    }
+  }, [reload]);
+
   const addSubject = useCallback(async (name: string) => {
     try {
       setError(null);
@@ -150,6 +199,11 @@ export function useStudyData() {
     deleteActivity,
     createPlan,
     activatePlan,
+    listArchivedPlans,
+    renamePlan,
+    archivePlan,
+    restorePlan,
+    deletePlan,
     addSubject,
     updateSubject,
     deleteSubject,

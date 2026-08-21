@@ -118,6 +118,44 @@ export function createStudyFlowMcpServer(authenticated: string | LocalAuthUser, 
     const data = study.load(); return { activePlan: data.activePlan ?? null, subjects: data.subjects };
   }, undefined, clientId));
 
+  server.registerTool("list_plans", {
+    title: "Listar calendários",
+    description: "Lista calendários disponíveis e arquivados, preservando o modo Basic ou Advanced de cada um.",
+    inputSchema: targetUserSchema, annotations: annotations.read,
+  }, (input) => execute(authenticatedUser, "list_plans", input, ({ study }) => ({
+    plans: study.listPlans(), archivedPlans: study.listPlans({ archived: true }),
+  }), undefined, clientId));
+
+  server.registerTool("activate_plan", {
+    title: "Ativar calendário", description: "Troca o calendário ativo sem alterar seu método ou regenerar atividades.",
+    inputSchema: { ...targetUserSchema, planId: z.string().uuid() }, annotations: annotations.update,
+  }, (input) => execute(authenticatedUser, "activate_plan", input, ({ study }) => {
+    requireWrite(); return { activePlan: study.activatePlan(input.planId) };
+  }, input.planId, clientId));
+
+  server.registerTool("rename_plan", {
+    title: "Renomear calendário", description: "Altera somente o nome de um calendário existente.",
+    inputSchema: { ...targetUserSchema, planId: z.string().uuid(), name: z.string().trim().min(1) }, annotations: annotations.update,
+  }, (input) => execute(authenticatedUser, "rename_plan", input, ({ study }) => {
+    requireWrite(); return { plan: study.renamePlan(input.planId, input.name) };
+  }, input.planId, clientId));
+
+  server.registerTool("archive_plan", {
+    title: "Arquivar calendário", description: "Arquiva de forma reversível e ativa outro calendário quando necessário.",
+    inputSchema: { ...targetUserSchema, planId: z.string().uuid() }, annotations: annotations.update,
+  }, (input) => execute(authenticatedUser, "archive_plan", input, ({ study }) => {
+    requireWrite();
+    const plan = study.archivePlan(input.planId);
+    return { plan, activePlan: study.load().activePlan ?? null };
+  }, input.planId, clientId));
+
+  server.registerTool("restore_plan", {
+    title: "Restaurar calendário", description: "Restaura um calendário arquivado sem alterar seu método ou regenerar atividades.",
+    inputSchema: { ...targetUserSchema, planId: z.string().uuid() }, annotations: annotations.update,
+  }, (input) => execute(authenticatedUser, "restore_plan", input, ({ study }) => {
+    requireWrite(); return { plan: study.restorePlan(input.planId), activePlan: study.load().activePlan ?? null };
+  }, input.planId, clientId));
+
   server.registerTool("get_plan_sources", {
     title: "Consultar fontes do plano", description: "Retorna fontes habilitadas para incidência e questões.",
     inputSchema: targetUserSchema, annotations: annotations.read,

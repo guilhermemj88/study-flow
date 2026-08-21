@@ -53,6 +53,11 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
     deleteActivity,
     createPlan,
     activatePlan,
+    listArchivedPlans,
+    renamePlan,
+    archivePlan,
+    restorePlan,
+    deletePlan,
     addSubject,
     updateSubject,
     deleteSubject,
@@ -129,6 +134,12 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
     setPlannerOpen(true);
   }
 
+  function resetPlanContext() {
+    setPlannerPreview(null);
+    setPriorityTopics([]);
+    setSelectedActivityId(null);
+  }
+
   function renderView() {
     if (!isReady) return <LoadingScreen />;
     switch (view) {
@@ -167,14 +178,17 @@ export function StudyFlowApp({ view }: StudyFlowAppProps) {
             activities={activities}
             onActivatePlan={async (id) => {
               await activatePlan(id);
-              setPlannerPreview(null);
-              setPriorityTopics([]);
-              setSelectedActivityId(null);
+              resetPlanContext();
             }}
+            onArchivePlan={async (id) => { await archivePlan(id); resetPlanContext(); }}
             onCreateActivity={(date) => setFormState({ initialDate: date })}
             onCreatePlan={() => setMethodModalOpen(true)}
+            onDeletePlan={async (id) => { await deletePlan(id); resetPlanContext(); }}
+            onListArchivedPlans={listArchivedPlans}
             onOpenActivity={(activity) => setSelectedActivityId(activity.id)}
             onOpenPlanner={() => setPlannerOpen(true)}
+            onRenamePlan={async (id, name) => { await renamePlan(id, name); }}
+            onRestorePlan={async (id) => { await restorePlan(id); resetPlanContext(); }}
             onGeneratePlanner={generatePlannerFromCalendar}
             plannerPreview={plannerPreview}
             plans={plans}

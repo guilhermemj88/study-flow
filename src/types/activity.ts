@@ -98,7 +98,13 @@ export interface StudyPlan {
   examDate?: string;
   studyMode: StudyMode;
   active: boolean;
+  archivedAt?: string;
 }
+
+export type StudyPlanPatch =
+  | { action: "rename"; name: string }
+  | { action: "archive" }
+  | { action: "restore" };
 
 export interface StudyPlanDraft {
   name: string;

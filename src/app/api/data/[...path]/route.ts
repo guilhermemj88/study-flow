@@ -3,7 +3,7 @@ import { LocalQuestionStore } from "@/lib/local/question-store";
 import { LocalSourceStore } from "@/lib/local/source-store";
 import { LocalStudyStore } from "@/lib/local/study-store";
 import { LocalPlannerStore } from "@/lib/local/planner-store";
-import type { ActivityDraft, ActivityResult, StudyActivity, StudyPlanDraft, StudySubject } from "@/types/activity";
+import type { ActivityDraft, ActivityResult, StudyActivity, StudyPlanDraft, StudyPlanPatch, StudySubject } from "@/types/activity";
 import type { QuestionDraft, QuestionFilters } from "@/types/question";
 import type { SourceDraft } from "@/types/source";
 import type { PlanSettingsUpdate } from "@/types/planner";
@@ -36,6 +36,7 @@ export async function GET(request: Request, context: RouteContext) {
     const questions = new LocalQuestionStore(user.id);
     const planner = new LocalPlannerStore(user.id);
     if (path[0] === "study" && path.length === 1) return json(study.load());
+    if (path[0] === "plans" && path[1] === "archived" && path.length === 2) return json(study.listPlans({ archived: true }));
     if (path[0] === "sources" && path.length === 1) return json(sources.load());
     if (path[0] === "sources" && path[1] && path[2] === "file") {
       const file = sources.readFile(path[1]);
@@ -122,6 +123,14 @@ export async function POST(request: Request, context: RouteContext) {
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const user = requireRequestUser(request); const path = (await context.params).path;
+    if (path[0] === "plans" && path[1] && path.length === 2) {
+      const input = await body<StudyPlanPatch>(request);
+      const study = new LocalStudyStore(user.id);
+      if (input.action === "rename") return json(study.renamePlan(path[1], input.name));
+      if (input.action === "archive") return json(study.archivePlan(path[1]));
+      if (input.action === "restore") return json(study.restorePlan(path[1]));
+      return json({ error: "Ação de calendário inválida." }, 400);
+    }
     if (path[0] === "activities" && path[1]) {
       new LocalStudyStore(user.id).updateActivity(path[1], await body<Partial<StudyActivity>>(request)); return new Response(null, { status: 204 });
     }
@@ -159,7 +168,12 @@ export async function PUT(request: Request, context: RouteContext) {
 export async function DELETE(request: Request, context: RouteContext) {
   try {
     const user = requireRequestUser(request); const path = (await context.params).path;
-    if (path[0] === "activities" && path[1]) new LocalStudyStore(user.id).deleteActivity(path[1]);
+    if (path[0] === "plans" && path[1] && path.length === 2) {
+      const input = await body<{ confirmed?: boolean }>(request);
+      if (input.confirmed !== true) return json({ error: "Confirme explicitamente a exclusão do calendário." }, 400);
+      new LocalStudyStore(user.id).deletePlan(path[1]);
+    }
+    else if (path[0] === "activities" && path[1]) new LocalStudyStore(user.id).deleteActivity(path[1]);
     else if (path[0] === "subjects" && path[1]) new LocalStudyStore(user.id).deleteSubject(path[1]);
     else if (path[0] === "sources" && path[1]) new LocalSourceStore(user.id).remove(path[1]);
     else return json({ error: "Rota não encontrada." }, 404);

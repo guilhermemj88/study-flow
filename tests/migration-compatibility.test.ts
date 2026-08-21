@@ -15,7 +15,7 @@ after(() => {
   rmSync(dataDirectory, { recursive: true, force: true });
 });
 
-test("migrations 004 e 005 preservam dados e classificam planos legados como Advanced", () => {
+test("migrations 004, 005 e 006 preservam dados e classificam planos legados como Advanced", () => {
   const legacy = new Database(join(dataDirectory, "study-flow.sqlite"));
   legacy.pragma("foreign_keys = ON");
   legacy.exec("CREATE TABLE schema_migrations (name TEXT PRIMARY KEY, applied_at TEXT NOT NULL)");
@@ -44,7 +44,9 @@ test("migrations 004 e 005 preservam dados e classificam planos legados como Adv
   };
   assert.deepEqual(question, { statement: "Enunciado preservado", question_status: "valid", correct_alternative: "A" });
   assert.equal((migrated.prepare("SELECT text FROM question_alternatives WHERE id = 'alternative-1'").get() as { text: string }).text, "Resposta preservada");
-  assert.deepEqual(migrated.prepare("SELECT study_mode FROM study_plans WHERE id = 'plan-1'").get(), { study_mode: "advanced" });
+  assert.deepEqual(migrated.prepare("SELECT study_mode, archived_at, deleted_at FROM study_plans WHERE id = 'plan-1'").get(), {
+    study_mode: "advanced", archived_at: null, deleted_at: null,
+  });
   assert.deepEqual(migrated.prepare("SELECT study_plan_id, status, review_sequence FROM activities WHERE id = 'activity-1'").get(), {
     study_plan_id: "plan-1", status: "planned", review_sequence: null,
   });

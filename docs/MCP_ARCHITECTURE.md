@@ -23,7 +23,7 @@ Stores locais com user_id obrigatório
 
 O ChatGPT faz a pesquisa e a interpretação. As ferramentas MCP apenas entregam dados locais autorizados ou persistem resultados estruturados. O projeto não chama a OpenAI API.
 
-O `studyMode` pertence ao plano ativo. As ferramentas avançadas do planejador recusam planos `basic`; `get_active_plan` expõe o modo e `list_calendar` retorna também os metadados das revisões. `create_activity` e `update_activity` foram mantidas como pontos de entrada compatíveis: ao criar um estudo em um plano `basic`, o mesmo serviço de domínio usado pela interface cria as quatro revisões idempotentes.
+O `studyMode` pertence ao plano ativo. As ferramentas avançadas do planejador recusam planos `basic`; `get_active_plan` expõe o modo e `list_calendar` retorna também os metadados das revisões. `list_plans`, `activate_plan`, `rename_plan`, `archive_plan` e `restore_plan` reutilizam o mesmo ciclo de vida da interface e nunca alteram a metodologia ou regeneram atividades. `create_activity` e `update_activity` foram mantidas como pontos de entrada compatíveis: ao criar um estudo em um plano `basic`, o mesmo serviço de domínio usado pela interface cria as quatro revisões idempotentes.
 
 ## Limites de rede
 
@@ -51,8 +51,8 @@ Diagnósticos administrativos são auditados em `admin_audit_log` com horário, 
 
 ## Ferramentas
 
-Leitura: `get_current_user`, `list_sources`, `get_source`, `get_source_file`, `get_active_plan`, `get_plan_sources`, `list_questions`, `list_calendar`, `get_activity`, `get_performance`.
+Leitura: `get_current_user`, `list_sources`, `get_source`, `get_source_file`, `get_active_plan`, `list_plans`, `get_plan_sources`, `list_questions`, `list_calendar`, `get_activity`, `get_performance`.
 
-Escrita: `create_source`, `save_source_analysis`, `save_source_topics`, `save_incidence`, `save_questions`, `create_activity`, `update_activity`.
+Escrita: `activate_plan`, `rename_plan`, `archive_plan`, `restore_plan`, `create_source`, `save_source_analysis`, `save_source_topics`, `save_incidence`, `save_questions`, `create_activity`, `update_activity`.
 
-Não existe ferramenta de SQL arbitrário, leitura de caminho arbitrário, exclusão destrutiva ou execução de comandos.
+Não existe ferramenta de SQL arbitrário, leitura de caminho arbitrário, exclusão de calendário, exclusão destrutiva ou execução de comandos.

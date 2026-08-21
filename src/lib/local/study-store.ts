@@ -24,6 +24,8 @@ interface PlanRow {
   exam_date: string | null;
   study_mode: StudyMode;
   active: number;
+  archived_at: string | null;
+  deleted_at: string | null;
 }
 interface ActivityRow {
   id: string; study_plan_id: string | null; subject_id: string; topic_id: string;
@@ -64,6 +66,7 @@ function mapPlan(row: PlanRow): StudyPlan {
     examDate: row.exam_date ?? undefined,
     studyMode: row.study_mode,
     active: Boolean(row.active),
+    archivedAt: row.archived_at ?? undefined,
   };
 }
 
@@ -109,8 +112,9 @@ export class LocalStudyStore {
   constructor(private readonly userId: string) {}
 
   private planRow(planId?: string | null): PlanRow {
-    const row = getDatabase().prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active
-      FROM study_plans WHERE user_id = ? AND ${planId ? "id = ?" : "active = 1"} LIMIT 1`)
+    const row = getDatabase().prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active, archived_at, deleted_at
+      FROM study_plans WHERE user_id = ? AND ${planId ? "id = ?" : "active = 1"}
+        AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1`)
       .get(...(planId ? [this.userId, planId] : [this.userId])) as PlanRow | undefined;
     if (!row) throw new Error(planId ? "Calendário não encontrado." : "Nenhum calendário ativo foi encontrado.");
     return row;
@@ -120,8 +124,9 @@ export class LocalStudyStore {
     const database = getDatabase();
     const subjectsRows = database.prepare("SELECT id, name FROM subjects WHERE user_id = ? ORDER BY name").all(this.userId) as SubjectRow[];
     const topicRows = database.prepare("SELECT id, subject_id, name FROM topics WHERE user_id = ? ORDER BY name").all(this.userId) as TopicRow[];
-    const planRows = database.prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active
-      FROM study_plans WHERE user_id = ? ORDER BY active DESC, created_at, name`).all(this.userId) as PlanRow[];
+    const planRows = database.prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active, archived_at, deleted_at
+      FROM study_plans WHERE user_id = ? AND archived_at IS NULL AND deleted_at IS NULL
+      ORDER BY active DESC, created_at, name`).all(this.userId) as PlanRow[];
     const planRow = planRows.find((plan) => Boolean(plan.active));
     const activityRows = planRow
       ? database.prepare("SELECT * FROM activities WHERE user_id = ? AND study_plan_id = ? AND deleted_at IS NULL ORDER BY scheduled_date, created_at").all(this.userId, planRow.id) as ActivityRow[]
@@ -469,6 +474,107 @@ export class LocalStudyStore {
         .run(timestamp, id, this.userId);
     })();
     return { ...mapPlan(plan), active: true };
+  }
+
+  listPlans(options: { archived?: boolean } = {}): StudyPlan[] {
+    const archived = Boolean(options.archived);
+    const rows = getDatabase().prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active, archived_at, deleted_at
+      FROM study_plans
+      WHERE user_id = ? AND deleted_at IS NULL
+        AND archived_at IS ${archived ? "NOT NULL" : "NULL"}
+      ORDER BY ${archived ? "archived_at DESC" : "active DESC, created_at, name"}`)
+      .all(this.userId) as PlanRow[];
+    return rows.map(mapPlan);
+  }
+
+  renamePlan(id: string, rawName: string): StudyPlan {
+    const name = rawName.trim();
+    if (!name) throw new Error("Informe um nome para o calendário.");
+    const database = getDatabase();
+    const row = database.prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active, archived_at, deleted_at
+      FROM study_plans WHERE id = ? AND user_id = ? AND deleted_at IS NULL`)
+      .get(id, this.userId) as PlanRow | undefined;
+    if (!row) throw new Error("Calendário não encontrado.");
+    database.prepare("UPDATE study_plans SET name = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+      .run(name, nowIso(), id, this.userId);
+    return { ...mapPlan(row), name };
+  }
+
+  archivePlan(id: string): StudyPlan {
+    const database = getDatabase();
+    const timestamp = nowIso();
+    return database.transaction(() => {
+      const plan = this.planRow(id);
+      const alternatives = database.prepare(`SELECT id, active FROM study_plans
+        WHERE user_id = ? AND id <> ? AND archived_at IS NULL AND deleted_at IS NULL
+        ORDER BY active DESC, created_at, id`).all(this.userId, id) as Array<{ id: string; active: number }>;
+      if (!alternatives.length) {
+        throw new Error("Crie outro calendário antes de arquivar o único calendário disponível.");
+      }
+      if (plan.active || !alternatives.some((item) => Boolean(item.active))) {
+        if (plan.active) {
+          database.prepare("UPDATE study_plans SET active = 0, updated_at = ? WHERE id = ? AND user_id = ?")
+            .run(timestamp, id, this.userId);
+        }
+        database.prepare("UPDATE study_plans SET active = 1, updated_at = ? WHERE id = ? AND user_id = ?")
+          .run(timestamp, alternatives[0].id, this.userId);
+      }
+      database.prepare("UPDATE study_plans SET active = 0, archived_at = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+        .run(timestamp, timestamp, id, this.userId);
+      return { ...mapPlan(plan), active: false, archivedAt: timestamp };
+    })();
+  }
+
+  restorePlan(id: string): StudyPlan {
+    const database = getDatabase();
+    const timestamp = nowIso();
+    return database.transaction(() => {
+      const plan = database.prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active, archived_at, deleted_at
+        FROM study_plans WHERE id = ? AND user_id = ? AND archived_at IS NOT NULL AND deleted_at IS NULL`)
+        .get(id, this.userId) as PlanRow | undefined;
+      if (!plan) throw new Error("Calendário arquivado não encontrado.");
+      const hasActive = database.prepare(`SELECT 1 FROM study_plans
+        WHERE user_id = ? AND active = 1 AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1`)
+        .get(this.userId);
+      const active = hasActive ? 0 : 1;
+      database.prepare("UPDATE study_plans SET archived_at = NULL, active = ?, updated_at = ? WHERE id = ? AND user_id = ?")
+        .run(active, timestamp, id, this.userId);
+      return { ...mapPlan(plan), active: Boolean(active), archivedAt: undefined };
+    })();
+  }
+
+  deletePlan(id: string): StudyPlan {
+    const database = getDatabase();
+    const timestamp = nowIso();
+    return database.transaction(() => {
+      const plan = database.prepare(`SELECT id, name, target_exam_name, exam_date, study_mode, active, archived_at, deleted_at
+        FROM study_plans WHERE id = ? AND user_id = ? AND deleted_at IS NULL`)
+        .get(id, this.userId) as PlanRow | undefined;
+      if (!plan) throw new Error("Calendário não encontrado.");
+      const existingCount = database.prepare("SELECT COUNT(*) total FROM study_plans WHERE user_id = ? AND deleted_at IS NULL")
+        .get(this.userId) as { total: number };
+      if (existingCount.total <= 1) throw new Error("Não é possível excluir o único calendário existente.");
+
+      const remainingActive = database.prepare(`SELECT id FROM study_plans
+        WHERE user_id = ? AND id <> ? AND active = 1 AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1`)
+        .get(this.userId, id) as { id: string } | undefined;
+      if (!remainingActive) {
+        const replacement = database.prepare(`SELECT id FROM study_plans
+          WHERE user_id = ? AND id <> ? AND archived_at IS NULL AND deleted_at IS NULL
+          ORDER BY created_at, id LIMIT 1`).get(this.userId, id) as { id: string } | undefined;
+        if (!replacement) throw new Error("Crie ou restaure outro calendário antes de excluir o calendário ativo.");
+        if (plan.active) {
+          database.prepare("UPDATE study_plans SET active = 0, updated_at = ? WHERE id = ? AND user_id = ?")
+            .run(timestamp, id, this.userId);
+        }
+        database.prepare("UPDATE study_plans SET active = 1, updated_at = ? WHERE id = ? AND user_id = ?")
+          .run(timestamp, replacement.id, this.userId);
+      }
+      database.prepare(`UPDATE study_plans
+        SET active = 0, deleted_at = ?, updated_at = ? WHERE id = ? AND user_id = ?`)
+        .run(timestamp, timestamp, id, this.userId);
+      return { ...mapPlan(plan), active: false };
+    })();
   }
 
   createSubject(name: string): StudySubject {

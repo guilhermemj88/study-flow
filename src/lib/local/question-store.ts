@@ -48,7 +48,8 @@ export class LocalQuestionStore {
       FROM question_alternatives qa WHERE qa.user_id = ? ORDER BY qa.sort_order`).all(this.userId) as AlternativeRow[];
     const attempts = database.prepare(`SELECT id, question_id, correct, selected_alternative, answered_at
       FROM question_attempts WHERE user_id = ? ORDER BY answered_at DESC`).all(this.userId) as AttemptRow[];
-    const plan = database.prepare("SELECT id FROM study_plans WHERE user_id = ? AND active = 1 LIMIT 1").get(this.userId) as { id: string } | undefined;
+    const plan = database.prepare(`SELECT id FROM study_plans
+      WHERE user_id = ? AND active = 1 AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1`).get(this.userId) as { id: string } | undefined;
     const activeSourceIds = plan ? (database.prepare(`SELECT source_id FROM study_plan_sources
       WHERE user_id = ? AND study_plan_id = ? AND use_for_questions = 1`).all(this.userId, plan.id) as Array<{ source_id: string }>).map((row) => row.source_id) : [];
     const selectedSources = filters?.sourceIds?.length ? filters.sourceIds : useActiveSources ? activeSourceIds : [];

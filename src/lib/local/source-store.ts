@@ -51,7 +51,8 @@ export class LocalSourceStore {
   load(): SourceLibraryData {
     const database = getDatabase();
     const sourceRows = database.prepare("SELECT * FROM sources WHERE user_id = ? ORDER BY created_at DESC").all(this.userId) as SourceRow[];
-    const plan = database.prepare("SELECT id, name FROM study_plans WHERE user_id = ? AND active = 1 LIMIT 1").get(this.userId) as { id: string; name: string } | undefined;
+    const plan = database.prepare(`SELECT id, name FROM study_plans
+      WHERE user_id = ? AND active = 1 AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1`).get(this.userId) as { id: string; name: string } | undefined;
     const links = database.prepare("SELECT id, study_plan_id, source_id, use_for_incidence, use_for_questions FROM study_plan_sources WHERE user_id = ?").all(this.userId) as LinkRow[];
     const counts = database.prepare(`SELECT source_id, COUNT(*) count,
       SUM(CASE WHEN question_status = 'valid' THEN 1 ELSE 0 END) valid_count,
@@ -109,7 +110,8 @@ export class LocalSourceStore {
         .run(id, this.userId, draft.name.trim(), draft.sourceType, draft.institution ?? null, draft.year ?? null,
           draft.edition ?? null, draft.description ?? null, storagePath, upload?.name ?? null, upload?.type ?? null,
           upload?.size ?? null, draft.sourceUrl ?? null, upload ? "pending" : "manual", Number(Boolean(draft.isAnswerKey)), timestamp, timestamp);
-      const plan = database.prepare("SELECT id FROM study_plans WHERE user_id = ? AND active = 1 LIMIT 1").get(this.userId) as { id: string } | undefined;
+      const plan = database.prepare(`SELECT id FROM study_plans
+        WHERE user_id = ? AND active = 1 AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1`).get(this.userId) as { id: string } | undefined;
       if (plan) database.prepare(`INSERT INTO study_plan_sources (
         id, user_id, study_plan_id, source_id, use_for_incidence, use_for_questions, created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
@@ -176,7 +178,8 @@ export class LocalSourceStore {
 
   setPlanSelection(sourceId: string, planId: string, input: { useForIncidence: boolean; useForQuestions: boolean }) {
     const database = getDatabase(); const timestamp = nowIso();
-    const plan = database.prepare("SELECT 1 FROM study_plans WHERE id = ? AND user_id = ?").get(planId, this.userId);
+    const plan = database.prepare(`SELECT 1 FROM study_plans
+      WHERE id = ? AND user_id = ? AND archived_at IS NULL AND deleted_at IS NULL`).get(planId, this.userId);
     const source = database.prepare("SELECT is_answer_key FROM sources WHERE id = ? AND user_id = ?").get(sourceId, this.userId) as { is_answer_key: number } | undefined;
     if (!plan || !source) throw new Error("Plano ou fonte não encontrado.");
     database.prepare(`INSERT INTO study_plan_sources (id, user_id, study_plan_id, source_id, use_for_incidence, use_for_questions, created_at, updated_at)

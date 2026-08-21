@@ -1,5 +1,5 @@
 import { apiRequest } from "@/lib/data/api-client";
-import type { ActivityDraft, ActivityResult, StudyActivity, StudyData, StudyPlan, StudyPlanDraft, StudySubject } from "@/types/activity";
+import type { ActivityDraft, ActivityResult, StudyActivity, StudyData, StudyPlan, StudyPlanDraft, StudyPlanPatch, StudySubject } from "@/types/activity";
 import type { PlanMutationResult, PlanSettings, PlanSettingsUpdate, PriorityTopic, ReviewRecommendation, StudyPlanPreview } from "@/types/planner";
 
 export class StudyRepository {
@@ -10,6 +10,12 @@ export class StudyRepository {
   deleteActivity(id: string) { return apiRequest<void>(`activities/${id}`, { method: "DELETE" }); }
   createPlan(draft: StudyPlanDraft) { return apiRequest<StudyPlan>("plans", { method: "POST", body: JSON.stringify(draft) }); }
   activatePlan(id: string) { return apiRequest<StudyPlan>(`plans/${id}/activate`, { method: "PUT" }); }
+  listArchivedPlans() { return apiRequest<StudyPlan[]>("plans/archived"); }
+  patchPlan(id: string, patch: StudyPlanPatch) { return apiRequest<StudyPlan>(`plans/${id}`, { method: "PATCH", body: JSON.stringify(patch) }); }
+  renamePlan(id: string, name: string) { return this.patchPlan(id, { action: "rename", name }); }
+  archivePlan(id: string) { return this.patchPlan(id, { action: "archive" }); }
+  restorePlan(id: string) { return this.patchPlan(id, { action: "restore" }); }
+  deletePlan(id: string) { return apiRequest<void>(`plans/${id}`, { method: "DELETE", body: JSON.stringify({ confirmed: true }) }); }
   createSubject(name: string) { return apiRequest<StudySubject>("subjects", { method: "POST", body: JSON.stringify({ name }) }); }
   updateSubject(subject: StudySubject, updates: Partial<StudySubject>) { return apiRequest<void>(`subjects/${subject.id}`, { method: "PATCH", body: JSON.stringify(updates) }); }
   deleteSubject(id: string) { return apiRequest<void>(`subjects/${id}`, { method: "DELETE" }); }

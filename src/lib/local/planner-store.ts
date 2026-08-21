@@ -123,7 +123,8 @@ export class LocalPlannerStore {
   constructor(private readonly userId: string) {}
 
   private activePlan(allowBasic = false) {
-    const plan = getDatabase().prepare("SELECT id, exam_date, study_mode FROM study_plans WHERE user_id = ? AND active = 1 LIMIT 1")
+    const plan = getDatabase().prepare(`SELECT id, exam_date, study_mode FROM study_plans
+      WHERE user_id = ? AND active = 1 AND archived_at IS NULL AND deleted_at IS NULL LIMIT 1`)
       .get(this.userId) as { id: string; exam_date: string | null; study_mode: "basic" | "advanced" } | undefined;
     if (!plan) throw new Error("Nenhum plano de estudos ativo foi encontrado.");
     if (!allowBasic && plan.study_mode !== "advanced") {

@@ -12,6 +12,7 @@
     "mcp:inspect": "npx @modelcontextprotocol/inspector http://127.0.0.1:3333/mcp",
     "mcp:tunnel": "cloudflared tunnel --url http://127.0.0.1:3333",
     "build": "next build",
+    "typecheck": "tsc --noEmit",
     "start": "next start --hostname 127.0.0.1",
     "lint": "eslint .",
     "test": "tsx --test tests/*.test.ts"
