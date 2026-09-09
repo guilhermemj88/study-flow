@@ -3,6 +3,11 @@ FROM node:24-bookworm-slim AS build
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Compile native Node.js modules such as better-sqlite3.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends python3 make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY package.json package-lock.json ./
 # tsx and TypeScript are needed at runtime by the existing scripts/config.
 RUN npm ci --include=dev
