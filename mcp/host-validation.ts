@@ -1,5 +1,6 @@
 import type { RequestHandler, Response } from "express";
 import { getMcpPublicBaseUrl } from "@/lib/local/oauth-store";
+import { getMcpInternalBaseUrl } from "@/lib/local/mcp-config";
 
 interface HostValidationConfig {
   allowedHostnames: string[];
@@ -33,8 +34,9 @@ function hostnameFromHeader(value: string) {
 export function getMcpHostValidationConfig(): HostValidationConfig {
   const publicUrl = new URL(getMcpPublicBaseUrl());
   const configuredPublicUrl = process.env.MCP_PUBLIC_URL?.trim() ? publicUrl : null;
+  const internalHostname = new URL(getMcpInternalBaseUrl()).hostname.toLowerCase();
   return {
-    allowedHostnames: [...new Set(["127.0.0.1", "localhost", "[::1]", configuredPublicUrl?.hostname.toLowerCase()].filter((value): value is string => Boolean(value)))],
+    allowedHostnames: [...new Set(["127.0.0.1", "localhost", "[::1]", internalHostname, configuredPublicUrl?.hostname.toLowerCase()].filter((value): value is string => Boolean(value)))],
     publicHostname: configuredPublicUrl?.hostname.toLowerCase() ?? null,
     publicProtocol: configuredPublicUrl ? configuredPublicUrl.protocol.slice(0, -1) as "http" | "https" : null,
   };

@@ -7,7 +7,10 @@ loadEnvConfig(process.cwd());
 
 const host = process.env.MCP_HOST || "127.0.0.1";
 const port = Number(process.env.MCP_PORT || 3333);
-if (!["127.0.0.1", "localhost", "::1"].includes(host)) throw new Error("MCP_HOST deve permanecer em loopback; exponha o MCP somente pelo túnel HTTPS.");
+const allowNonLoopback = process.env.MCP_ALLOW_NON_LOOPBACK === "true";
+if (!["127.0.0.1", "localhost", "::1"].includes(host) && !allowNonLoopback) {
+  throw new Error("MCP_HOST fora de loopback exige MCP_ALLOW_NON_LOOPBACK=true.");
+}
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("MCP_PORT inválida.");
 
 const httpServer = createStudyFlowMcpApp(host).listen(port, host, () => {

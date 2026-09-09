@@ -13,6 +13,7 @@ export function createStudyFlowMcpApp(host = process.env.MCP_HOST || "127.0.0.1"
   app.use(proxyAwareHostValidation(hostValidation));
   app.use(createMcpExpressApp({ host, allowedHosts: hostValidation.allowedHostnames }));
   getDatabase();
+  app.use(express.urlencoded({ extended: false }));
   registerOAuthRoutes(app);
 
   app.get("/health", (_req, res) => res.json({ status: "ok", service: "study-flow-mcp", transport: "streamable-http", database: "sqlite-local" }));

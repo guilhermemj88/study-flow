@@ -1,0 +1,59 @@
+services:
+  study-flow-web:
+    build: .
+    image: study-flow:local
+    restart: unless-stopped
+    init: true
+    command: ["sh", "-c", "npm run db:init && exec npx next start --hostname 0.0.0.0 --port 3030"]
+    environment:
+      NODE_ENV: production
+      STUDY_FLOW_DATA_DIR: /app/data
+      MCP_PORT: "3333"
+      MCP_INTERNAL_URL: http://study-flow-mcp:3333
+      MCP_PUBLIC_URL: "${MCP_PUBLIC_URL:-https://mcp-study-flow.gmjtelecom.com.br}"
+      STUDY_FLOW_AI_ENABLED: "${STUDY_FLOW_AI_ENABLED:-false}"
+      STUDY_FLOW_AI_PROVIDER: "${STUDY_FLOW_AI_PROVIDER:-openai_compatible}"
+      STUDY_FLOW_AI_BASE_URL: "${STUDY_FLOW_AI_BASE_URL:-}"
+      STUDY_FLOW_AI_MODEL: "${STUDY_FLOW_AI_MODEL:-}"
+      STUDY_FLOW_AI_API_KEY: "${STUDY_FLOW_AI_API_KEY:-}"
+      STUDY_FLOW_AI_TIMEOUT_MS: "${STUDY_FLOW_AI_TIMEOUT_MS:-120000}"
+      STUDY_FLOW_AI_EXTRA_BODY_JSON: "${STUDY_FLOW_AI_EXTRA_BODY_JSON:-}"
+    volumes:
+      - /opt/study-flow-data:/app/data
+    ports:
+      - "${STUDY_FLOW_BIND_ADDRESS:-127.0.0.1}:3030:3030"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3030/login').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12
+
+  study-flow-mcp:
+    build: .
+    image: study-flow:local
+    restart: unless-stopped
+    init: true
+    command: ["npm", "run", "mcp:start"]
+    depends_on:
+      study-flow-web:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      STUDY_FLOW_DATA_DIR: /app/data
+      MCP_HOST: 0.0.0.0
+      MCP_PORT: "3333"
+      MCP_ALLOW_NON_LOOPBACK: "true"
+      MCP_INTERNAL_URL: http://study-flow-mcp:3333
+      MCP_PUBLIC_URL: "${MCP_PUBLIC_URL:-https://mcp-study-flow.gmjtelecom.com.br}"
+      MCP_ALLOW_INSECURE_DEV_REDIRECTS: "false"
+    volumes:
+      - /opt/study-flow-data:/app/data
+    ports:
+      - "${MCP_BIND_ADDRESS:-127.0.0.1}:3333:3333"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3333/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      start_period: 30s
+      retries: 12

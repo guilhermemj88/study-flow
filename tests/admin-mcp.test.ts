@@ -14,6 +14,7 @@ import { getChatGptConnectionEvidence, listMcpLogs, listOAuthClients, listAdminU
 import { closeDatabaseForTests, getDatabase } from "../src/lib/local/database";
 import { runAuthenticatedReadWriteDiagnostic, runAuthenticatedToolsDiagnostic, runMcpEndpointDiagnostics } from "../src/lib/local/mcp-diagnostics";
 import { authorizeWithPassword, createAuthorizationRequest, exchangeAuthorizationCode, registerOAuthClient, resolveAccessToken } from "../src/lib/local/oauth-store";
+import { getMcpInternalBaseUrl } from "../src/lib/local/mcp-config";
 
 const dataDirectory = mkdtempSync(join(tmpdir(), "study-flow-admin-test-"));
 const port = 38_000 + Math.floor(Math.random() * 2_000);
@@ -97,6 +98,30 @@ test("diagnóstico diferencia servidor online, offline e URL pública inválida"
     assert.equal(publicOnline.publicAccess.ok, true);
   } finally {
     process.env.MCP_PUBLIC_URL = original;
+  }
+});
+
+test("diagnóstico usa a origem interna configurada sem mudar a origem OAuth pública", async () => {
+  const original = process.env.MCP_INTERNAL_URL;
+  try {
+    process.env.MCP_INTERNAL_URL = "http://study-flow-mcp:3333";
+    const urls: string[] = [];
+    const fetchImpl = (async (input, init) => {
+      urls.push(String(input));
+      return metadataFetch("online")(input, init);
+    }) as typeof fetch;
+    const result = await runMcpEndpointDiagnostics({ fetchImpl });
+    assert.equal(result.localEndpoint, "http://study-flow-mcp:3333/mcp");
+    assert.ok(result.server.ok && result.oauth.ok);
+    assert.ok(urls.includes("http://study-flow-mcp:3333/health"));
+    assert.ok(urls.includes("http://study-flow-mcp:3333/.well-known/oauth-protected-resource/mcp"));
+    for (const invalid of ["file:///tmp/mcp", "http://user:password@mcp", "http://mcp/path", "http://mcp?token=test", "http://mcp#fragment"]) {
+      process.env.MCP_INTERNAL_URL = invalid;
+      assert.throws(() => getMcpInternalBaseUrl(), /MCP_INTERNAL_URL/);
+    }
+  } finally {
+    if (original === undefined) delete process.env.MCP_INTERNAL_URL;
+    else process.env.MCP_INTERNAL_URL = original;
   }
 });
 

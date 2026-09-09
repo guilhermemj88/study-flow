@@ -106,7 +106,7 @@ Em uma conversa, habilite o conector e teste pedidos como:
 ## 5. Operação e segurança
 
 - mantenha o MCP ligado para o ChatGPT conseguir acessar o computador;
-- mantenha `MCP_HOST=127.0.0.1`; o túnel é quem fornece HTTPS;
+- na execução direta, mantenha `MCP_HOST=127.0.0.1`; no [Docker](DOCKER.md), use `0.0.0.0` com `MCP_ALLOW_NON_LOOPBACK=true` e publique a porta no loopback do host para o túnel HTTPS;
 - a URL em `MCP_PUBLIC_URL` deve ser exatamente a origem vista pelo ChatGPT;
 - não exponha `data/`, o arquivo SQLite ou a aplicação web;
 - faça backup de `data/` com os processos parados;

@@ -18,7 +18,9 @@ O backend Next.js pode executar tarefas registradas pelo AI Gateway. Essa integr
 
 ## Executar
 
-Pré-requisito: Node.js 20.9 ou superior.
+Pré-requisito: Node.js 22 ou superior (Docker utiliza Node.js 24).
+
+Para produção com os serviços web e MCP compartilhando `/opt/study-flow-data`, consulte [Deploy com Docker](docs/DOCKER.md).
 
 ```bash
 npm install

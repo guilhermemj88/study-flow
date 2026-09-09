@@ -16,6 +16,12 @@ function escapeHtml(value: string) {
 }
 
 async function readForm(request: Request) {
+  // Express may already have consumed the stream for form or JSON bodies.
+  if (request.body && typeof request.body === "object" && !Buffer.isBuffer(request.body)) {
+    return Object.fromEntries(
+      Object.entries(request.body).map(([key, value]) => [key, String(value ?? "")]),
+    );
+  }
   const chunks: Buffer[] = [];
   for await (const chunk of request) chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
   return Object.fromEntries(new URLSearchParams(Buffer.concat(chunks).toString("utf8")));

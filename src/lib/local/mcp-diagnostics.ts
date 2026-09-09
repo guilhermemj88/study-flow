@@ -4,6 +4,7 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { getChatGptConnectionEvidence, recordAdminAudit } from "@/lib/local/admin-store";
 import { getDatabase, newId, nowIso } from "@/lib/local/database";
 import { getMcpResourceUrl } from "@/lib/local/oauth-store";
+import { getMcpInternalBaseUrl } from "@/lib/local/mcp-config";
 
 export type DiagnosticState = "online" | "offline" | "healthy" | "warning" | "invalid" | "not_configured";
 
@@ -27,10 +28,6 @@ export interface McpEndpointDiagnostics {
 }
 
 type FetchLike = typeof fetch;
-
-function localBaseUrl() {
-  return `http://127.0.0.1:${process.env.MCP_PORT || "3333"}`;
-}
 
 export function configuredPublicEndpoint() {
   const configured = process.env.MCP_PUBLIC_URL?.trim().replace(/\/+$/, "");
@@ -118,7 +115,7 @@ async function probeOAuth(endpoint: string, fetchImpl: FetchLike, timeoutMs: num
 export async function runMcpEndpointDiagnostics(options: { fetchImpl?: FetchLike; timeoutMs?: number } = {}): Promise<McpEndpointDiagnostics> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const timeoutMs = options.timeoutMs ?? 4_000;
-  const baseUrl = localBaseUrl();
+  const baseUrl = getMcpInternalBaseUrl();
   const localEndpoint = `${baseUrl}/mcp`;
   const configured = configuredPublicEndpoint();
   const checkedAt = nowIso();
@@ -205,7 +202,7 @@ function temporaryToken(userId: string) {
 async function withAuthenticatedClient<T>(userId: string, operation: (client: Client) => Promise<T>) {
   const diagnosticToken = temporaryToken(userId);
   const client = new Client({ name: "study-flow-admin-diagnostic", version: "1.0.0" });
-  const transport = new StreamableHTTPClientTransport(new URL(`${localBaseUrl()}/mcp`), {
+  const transport = new StreamableHTTPClientTransport(new URL(`${getMcpInternalBaseUrl()}/mcp`), {
     requestInit: { headers: { authorization: `Bearer ${diagnosticToken.rawToken}` } },
     fetch: diagnosticFetch(fetch, 6_000),
   });
