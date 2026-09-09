@@ -22,6 +22,18 @@ services:
       - /opt/study-flow-data:/app/data
     ports:
       - "${STUDY_FLOW_BIND_ADDRESS:-127.0.0.1}:3030:3030"
+    networks:
+      - default
+      - network_public
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: network_public
+      traefik.http.routers.study-flow-web.entrypoints: websecure
+      traefik.http.routers.study-flow-web.rule: Host(`study-flow.gmjtelecom.com.br`)
+      traefik.http.routers.study-flow-web.tls: "true"
+      traefik.http.routers.study-flow-web.tls.certresolver: letsencrypt
+      traefik.http.routers.study-flow-web.service: study-flow-web
+      traefik.http.services.study-flow-web.loadbalancer.server.port: "3030"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3030/login').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
@@ -51,9 +63,27 @@ services:
       - /opt/study-flow-data:/app/data
     ports:
       - "${MCP_BIND_ADDRESS:-127.0.0.1}:3333:3333"
+    networks:
+      - default
+      - network_public
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: network_public
+      traefik.http.routers.study-flow-mcp.entrypoints: websecure
+      traefik.http.routers.study-flow-mcp.rule: Host(`mcp-study-flow.gmjtelecom.com.br`)
+      traefik.http.routers.study-flow-mcp.tls: "true"
+      traefik.http.routers.study-flow-mcp.tls.certresolver: letsencrypt
+      traefik.http.routers.study-flow-mcp.service: study-flow-mcp
+      traefik.http.services.study-flow-mcp.loadbalancer.server.port: "3333"
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3333/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
       interval: 10s
       timeout: 5s
       start_period: 30s
       retries: 12
+
+networks:
+  default: {}
+  network_public:
+    external: true
+    name: network_public
