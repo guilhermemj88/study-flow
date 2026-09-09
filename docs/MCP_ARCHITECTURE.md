@@ -3,7 +3,7 @@
 ## Fluxo de dados
 
 ```text
-ChatGPT Business
+ChatGPT, Claude ou outro cliente MCP com OAuth
         │
         │ HTTPS /mcp (Streamable HTTP)
         │ OAuth 2.1 + PKCE S256
@@ -21,7 +21,7 @@ Stores locais com user_id obrigatório
         └── data/uploads/<user-id>/...: PDF e imagens
 ```
 
-O ChatGPT faz a pesquisa e a interpretação. As ferramentas MCP apenas entregam dados locais autorizados ou persistem resultados estruturados. O projeto não chama a OpenAI API.
+No modo MCP, a IA do usuário faz a pesquisa e a interpretação. As ferramentas MCP apenas entregam dados locais autorizados ou persistem resultados estruturados. O [AI Gateway opcional](AI_GATEWAY.md) é um fluxo separado no backend Next.js; o MCP não o utiliza.
 
 O `studyMode` pertence ao plano ativo. As ferramentas avançadas do planejador recusam planos `basic`; `get_active_plan` expõe o modo e `list_calendar` retorna também os metadados das revisões. `list_plans`, `activate_plan`, `rename_plan`, `archive_plan` e `restore_plan` reutilizam o mesmo ciclo de vida da interface e nunca alteram a metodologia ou regeneram atividades. `create_activity` e `update_activity` foram mantidas como pontos de entrada compatíveis: ao criar um estudo em um plano `basic`, o mesmo serviço de domínio usado pela interface cria as quatro revisões idempotentes.
 
@@ -39,7 +39,21 @@ O conector usa Dynamic Client Registration, Authorization Code, PKCE S256 e refr
 
 Cada store é instanciado com o `user_id` resolvido do access token. IDs recebidos de ferramentas nunca determinam o usuário e todas as consultas incluem a propriedade. Ferramentas de escrita também exigem `studyflow:write`.
 
-Redirect URIs aceitos por padrão pertencem ao domínio `chatgpt.com`. Redirects HTTP de localhost só são aceitos quando `MCP_ALLOW_INSECURE_DEV_REDIRECTS=true`, destinado a testes locais.
+O registro dinâmico aceita callbacks HTTPS de clientes MCP, incluindo ChatGPT e Claude, sem credenciais embutidas ou fragmentos. A autorização e a troca do código exigem correspondência exata com o callback registrado e PKCE S256. A página de consentimento mostra o aplicativo de destino e os escopos solicitados. Redirects HTTP de localhost só são aceitos quando `MCP_ALLOW_INSECURE_DEV_REDIRECTS=true`, destinado a testes locais.
+
+## Gestão individual de IA e MCP
+
+A área `/ia`, acessível pelo menu “IA / Integrações” e pelas Configurações, apresenta “IA do Study Flow”, “Minha IA via MCP” e “Sem IA”. A IA nativa depende de configuração válida do AI Gateway. A migration `007_user_ai_preferences.sql` persiste a escolha por conta; usuários com uma autorização existente continuam inicialmente no modo MCP. A migration 008 acrescenta privacidade e auditoria da IA integrada sem mudar OAuth ou os valores dos modos existentes.
+
+A página e a API `/api/integrations/ai` exigem sessão autenticada, inclusive para usuários comuns. Somente nome, e-mail, preferência, URL pública validada e evidências resumidas dessa conta são enviados à interface. A API ignora a identidade fornecida pelo cliente: mutations aceitam apenas ações explicitamente validadas e rejeitam campos adicionais. As respostas usam `private, no-store`.
+
+O estado diferencia ausência de conexão, autorização ativa aguardando uso, chamada autenticada confirmada e autorização inativa. A evidência cruza usuário, cliente, recurso, validade e revogação; timestamps globais de clientes não comprovam conexão individual. Uma confirmação histórica não afirma disponibilidade do servidor em tempo real. Endereços locais, ausentes ou inválidos não são apresentados como URLs públicas.
+
+A URL vem do mesmo `MCP_PUBLIC_URL` usado pelo servidor existente, sempre com `/mcp`. Não há servidor ou URL por usuário; o isolamento das ferramentas continua exclusivamente na autenticação. A preferência de IA não é usada para selecionar usuário, modificar escopos ou invalidar integrações existentes.
+
+“Sem IA” salva a preferência e informa quando ainda existem autorizações. A ação explícita “Revogar meus acessos MCP” revoga access/refresh tokens e invalida códigos pendentes somente da conta autenticada, preservando o registro compartilhado do cliente e os acessos de outras pessoas. Uma nova conexão requer OAuth novamente.
+
+O componente de autenticação reserva uma seção “Tokens pessoais / Personal Access Tokens”, marcada como indisponível. Não há emissão, armazenamento ou endpoint de tokens permanentes. Consulte o [guia de conexão do usuário](MCP_USER_GUIDE.md).
 
 ## Administração local
 

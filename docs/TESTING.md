@@ -4,6 +4,8 @@
 
 ```bash
 npm test
+npm run db:init
+npm run typecheck
 npm run lint
 npm run build
 ```
@@ -20,7 +22,15 @@ Os testes locais cobrem o motor de seleção, migrations SQLite, autenticação,
 6. Confirme que `POST /mcp` sem Bearer retorna `401` e `WWW-Authenticate`.
 7. Execute o fluxo OAuth/PKCE com o MCP Inspector e chame ferramentas de leitura e escrita.
 8. Promova uma conta com `npm run user:make-admin -- email@usuario.com` e confirme as rotas `/admin/chatgpt`, `/admin/users` e `/admin/mcp-logs`.
-9. Entre como usuário comum e confirme que a navegação administrativa não aparece, o card MCP informa “Gerenciado” e a API administrativa retorna `403`.
+9. Entre como usuário comum e confirme que a navegação administrativa não aparece, a área IA / Integrações permite configurar o próprio MCP e a API administrativa retorna `403`.
+
+## AI Gateway
+
+`ai-gateway.test.ts` verifica configuração ausente/desativada, modos por conta, tarefa restrita, privacidade documental, saída estruturada, HTTP/timeout, tokens, auditoria, isolamento e independência do MCP. `ai-gateway-migration.test.ts` verifica upgrade da 007 preservando preferências, calendários e tokens OAuth, com foreign keys habilitadas e válidas.
+
+Em `/ia`, valide desktop e mobile sem provider/chave e com endpoint OpenAI-compatible de teste. Confirme disponibilidade, persistência após reload, alternância entre os três modos, privacidade, teste e recomendações. Inspecione HTML e respostas de rede: chave e URL interna não podem aparecer. Abrir a tela ou alterar preferência não deve chamar provider. Os endpoints de prompt, chat e completion devem retornar 404.
+
+Não utilize credenciais reais em fixtures. O helper local `.tools/qa/ai-gateway-smoke.mjs` sobe o app com dados isolados e um provider HTTP simulado. A configuração para validação real da DeepSeek está em [AI_GATEWAY.md](AI_GATEWAY.md).
 
 ## Validação do túnel e ChatGPT Business
 

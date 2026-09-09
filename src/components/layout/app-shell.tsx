@@ -36,7 +36,7 @@ const navItems: Array<{
   { label: "Desempenho", href: "/desempenho", icon: ChartNoAxesCombined, capability: "performance" },
   { label: "Matérias", href: "/materias", icon: Layers3 },
   { label: "Provas", href: "/provas", icon: Files, capability: "sources" },
-  { label: "Usar com ChatGPT", href: "/chatgpt", icon: Bot },
+  { label: "IA / Integrações", href: "/ia", icon: Bot },
   { label: "Configurações", href: "/configuracoes", icon: Settings2 },
 ];
 

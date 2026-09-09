@@ -18,7 +18,7 @@ interface SettingsPageProps {
 export function SettingsPage({ activityCount, subjectCount, email, planName, role, onLogout }: SettingsPageProps) {
   return (
     <div className="standard-page settings-page">
-      <PageHeading description="Conta, armazenamento local e conexão MCP do Study Flow." eyebrow="Aplicativo" title="Configurações" />
+      <PageHeading description="Sua conta, preferências e integrações do Study Flow." eyebrow="Aplicativo" title="Configurações" />
 
       <section className="settings-panel">
         <div className="settings-row">
@@ -36,19 +36,18 @@ export function SettingsPage({ activityCount, subjectCount, email, planName, rol
           <div><strong>Dados privados</strong><p>Banco e uploads permanecem neste computador, isolados pelo usuário autenticado.</p></div>
           <span className="settings-state">Protegido</span>
         </div>
+        <Link className="settings-row settings-row--link" href="/ia">
+          <span className="settings-icon"><Cable size={19} /></span>
+          <div><strong>Conectar minha IA via MCP</strong><p>Escolha sua IA, copie a URL e conecte com sua própria conta.</p></div>
+          <span className="settings-state">IA / Integrações</span>
+        </Link>
         {role === "admin" ? (
           <Link className="settings-row settings-row--link" href="/admin/chatgpt">
             <span className="settings-icon"><Cable size={19} /></span>
-            <div><strong>ChatGPT Business via MCP</strong><p>Configure endpoints, OAuth, diagnósticos e clientes autorizados.</p></div>
+            <div><strong>Administração do MCP</strong><p>Endpoints, diagnósticos e clientes da instalação.</p></div>
             <span className="settings-state">Configurar</span>
           </Link>
-        ) : (
-          <div className="settings-row">
-            <span className="settings-icon"><Cable size={19} /></span>
-            <div><strong>ChatGPT Business via MCP</strong><p>A conexão é configurada e gerenciada pelo administrador.</p></div>
-            <span className="settings-state">Gerenciado</span>
-          </div>
-        )}
+        ) : null}
       </section>
 
       <PlanSettingsPanel />

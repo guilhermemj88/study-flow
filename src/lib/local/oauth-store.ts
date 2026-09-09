@@ -47,7 +47,10 @@ export function getMcpResourceUrl() { return `${getMcpPublicBaseUrl()}/mcp`; }
 function allowedRedirect(uri: string) {
   try {
     const parsed = new URL(uri);
-    if (parsed.protocol === "https:" && parsed.hostname === "chatgpt.com" && (parsed.pathname.startsWith("/connector/oauth/") || parsed.pathname === "/connector_platform_oauth_redirect")) return true;
+    if (parsed.username || parsed.password || parsed.hash || uri.includes("#")) return false;
+    // Public MCP clients register their own HTTPS callbacks. Authorization and
+    // code exchange still require the exact registered URI and PKCE S256.
+    if (parsed.protocol === "https:") return true;
     if (process.env.MCP_ALLOW_INSECURE_DEV_REDIRECTS === "true" && parsed.protocol === "http:" && ["127.0.0.1", "localhost"].includes(parsed.hostname)) return true;
   } catch { return false; }
   return false;
@@ -76,7 +79,14 @@ export function createAuthorizationRequest(input: {
     (id, client_id, redirect_uri, state, code_challenge, scopes, resource, expires_at, created_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
     .run(id, input.clientId, input.redirectUri, input.state ?? null, input.codeChallenge, assertScopes(input.scope ?? ""), resource, expiresAt, createdAt);
-  return { id, clientName: client.client_name };
+  return { id, clientName: client.client_name, redirectUri: input.redirectUri, scopes: assertScopes(input.scope ?? "") };
+}
+
+export function getAuthorizationRequestDetails(requestId: string) {
+  return getDatabase().prepare(`SELECT r.id, c.client_name AS clientName, r.redirect_uri AS redirectUri, r.scopes
+    FROM oauth_requests r JOIN oauth_clients c ON c.id = r.client_id
+    WHERE r.id = ? AND r.expires_at > ? AND c.revoked_at IS NULL`).get(requestId, nowIso()) as
+    { id: string; clientName: string; redirectUri: string; scopes: string } | undefined;
 }
 
 export function authorizeWithPassword(requestId: string, email: string, password: string) {

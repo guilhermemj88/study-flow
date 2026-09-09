@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Bot, Check, Copy, ExternalLink } from "lucide-react";
 import { PageHeading } from "@/components/ui/page-heading";
 
@@ -39,6 +40,7 @@ export function ChatGptPromptsPage() {
   return (
     <div className="standard-page chatgpt-prompts-page">
       <PageHeading description="Prompts prontos para usar a conexão MCP sem chamadas automáticas ou cobrança por token no Study Flow." eyebrow="Conexão sob seu controle" title="Usar com ChatGPT" />
+      <Link className="button button--ghost" href="/ia">Conectar minha IA via MCP</Link>
       <section className="chatgpt-intro">
         <span><Bot size={24} /></span>
         <div><h2>Seus dados não são enviados automaticamente</h2><p>Para usar o ChatGPT, conecte o app Study Flow no ChatGPT e solicite a análise por lá. O Study Flow não chama a API da OpenAI.</p></div>

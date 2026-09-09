@@ -1,6 +1,6 @@
 # Study Flow
 
-Aplicação local para planejamento de estudos, provas, editais, questões, incidência, calendário e desempenho. O ChatGPT Business acessa os dados pelo servidor MCP do projeto; não há OpenAI API, Supabase ou banco externo.
+Aplicação local para planejamento de estudos, provas, editais, questões, incidência, calendário e desempenho. A IA do usuário acessa os dados pelo MCP; a IA integrada opcional utiliza um AI Gateway OpenAI-compatible. Banco e uploads permanecem locais.
 
 ## Arquitetura
 
@@ -13,6 +13,8 @@ Next.js local ──────────────────────
 ```
 
 O Next.js e o MCP compartilham stores que sempre recebem o usuário autenticado. O navegador usa uma sessão local HttpOnly; o ChatGPT usa tokens OAuth opacos. Apenas a porta do MCP é encaminhada pelo túnel HTTPS.
+
+O backend Next.js pode executar tarefas registradas pelo AI Gateway. Essa integração é independente do MCP e fica desabilitada por padrão. Configuração DeepSeek, políticas de privacidade e tarefas: [docs/AI_GATEWAY.md](docs/AI_GATEWAY.md).
 
 ## Executar
 
@@ -31,6 +33,8 @@ npm run dev:all
 
 Crie uma conta no Study Flow antes de autorizar o conector. Para publicar o MCP por HTTPS e conectá-lo ao ChatGPT Business, siga [docs/MCP_SETUP.md](docs/MCP_SETUP.md).
 
+Com o MCP já publicado, qualquer usuário autenticado pode abrir **IA / Integrações** (`/ia`) ou **Configurações → Conectar minha IA via MCP** para copiar a URL compartilhada, conectar sua conta por OAuth no ChatGPT, Claude ou outro cliente compatível e revogar seus próprios acessos. Consulte o [guia de conexão do usuário](docs/MCP_USER_GUIDE.md). A tela também apresenta **Sem IA** e **IA do Study Flow**, disponível quando o provider da instalação estiver configurado. Tokens pessoais ficam reservados para uma evolução futura.
+
 O primeiro administrador deve ser promovido explicitamente depois de criar a conta:
 
 ```bash
@@ -48,6 +52,7 @@ Reinicie a sessão e abra `http://localhost:3000/admin/chatgpt`. Nenhuma conta r
 - incidência e desempenho;
 - MCP Streamable HTTP com leitura e gravação de fontes, análises, questões, incidência, calendário e desempenho;
 - OAuth 2.1 com Dynamic Client Registration, PKCE S256, access/refresh tokens e auditoria das ferramentas MCP;
+- AI Gateway opcional com teste de disponibilidade, recomendações de revisão, schemas, auditoria por conta e controle de processamento documental externo;
 - painel administrativo para usuários, clientes OAuth, diagnósticos autenticados e logs MCP sem credenciais.
 
 ## Stack e persistência

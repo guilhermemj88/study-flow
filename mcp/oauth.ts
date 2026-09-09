@@ -3,6 +3,7 @@ import {
   authorizeWithPassword,
   createAuthorizationRequest,
   exchangeAuthorizationCode,
+  getAuthorizationRequestDetails,
   getMcpPublicBaseUrl,
   getMcpResourceUrl,
   MCP_SCOPES,
@@ -31,9 +32,21 @@ function oauthError(error: unknown) {
   return { error: "invalid_request", error_description: error instanceof Error ? error.message : "Solicitação OAuth inválida." };
 }
 
-function authorizationPage(requestId: string, clientName: string, error?: string) {
+function authorizationPage(authorization: { id: string; clientName: string; redirectUri: string; scopes: string }, error?: string) {
+  const { id: requestId, clientName, redirectUri, scopes } = authorization;
+  const permissions = scopes.split(" ").includes("studyflow:write") ? "leitura e gravação" : "leitura";
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Autorizar Study Flow</title>
-  <style>body{margin:0;background:#f4f5f7;color:#1c2430;font:16px system-ui,sans-serif;display:grid;min-height:100vh;place-items:center}.card{background:#fff;border:1px solid #dde2e8;border-radius:16px;box-shadow:0 12px 40px #1c24301a;max-width:420px;padding:32px;width:calc(100% - 48px)}h1{font-size:24px;margin:0 0 8px}p{color:#5d6875;line-height:1.5}.notice{background:#f0f6ff;border-radius:10px;padding:12px;font-size:14px}.error{background:#fff0f0;color:#9b1c1c;border-radius:8px;padding:10px}label{display:grid;gap:6px;margin-top:16px;font-weight:600}input{border:1px solid #cbd3dc;border-radius:8px;font:inherit;padding:11px}button{background:#155eef;border:0;border-radius:8px;color:#fff;cursor:pointer;font:inherit;font-weight:700;margin-top:20px;padding:12px;width:100%}small{color:#74808d;display:block;margin-top:16px;line-height:1.4}</style></head><body><main class="card"><h1>Conectar ao Study Flow</h1><p><strong>${escapeHtml(clientName)}</strong> solicita acesso de leitura e gravação aos seus dados locais.</p><div class="notice">O ChatGPT acessará somente o usuário que você autenticar. O banco SQLite e os uploads continuam neste computador.</div>${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}<form method="post" action="/oauth/authorize"><input type="hidden" name="request_id" value="${escapeHtml(requestId)}"><label>E-mail<input autocomplete="username" name="email" required type="email"></label><label>Senha<input autocomplete="current-password" name="password" required type="password"></label><button type="submit">Autorizar ChatGPT</button></form><small>Autorize apenas se você iniciou esta conexão no ChatGPT Business.</small></main></body></html>`;
+  <style>body{margin:0;background:#f4f5f7;color:#1c2430;font:16px system-ui,sans-serif;display:grid;min-height:100vh;place-items:center}.card{background:#fff;border:1px solid #dde2e8;border-radius:16px;box-shadow:0 12px 40px #1c24301a;max-width:420px;padding:32px;width:calc(100% - 48px)}h1{font-size:24px;margin:0 0 8px}p{color:#5d6875;line-height:1.5}.notice{background:#f0f6ff;border-radius:10px;padding:12px;font-size:14px}.error{background:#fff0f0;color:#9b1c1c;border-radius:8px;padding:10px}label{display:grid;gap:6px;margin-top:16px;font-weight:600}input{border:1px solid #cbd3dc;border-radius:8px;font:inherit;padding:11px}button{background:#155eef;border:0;border-radius:8px;color:#fff;cursor:pointer;font:inherit;font-weight:700;margin-top:20px;padding:12px;width:100%}small{color:#74808d;display:block;margin-top:16px;line-height:1.4}</style></head>
+  <body><main class="card"><h1>Conectar ao Study Flow</h1>
+  <p><strong>${escapeHtml(clientName)}</strong> solicita acesso de ${permissions} aos seus estudos.</p>
+  <div class="notice">A autenticação é individual. Este cliente acessará os dados da conta Study Flow com a qual você entrar. Confira o e-mail antes de autorizar.</div>
+  <p>Aplicativo de destino: <strong>${escapeHtml(redirectUri ? new URL(redirectUri).origin : "Conexão expirada")}</strong></p>
+  ${error ? `<p class="error">${escapeHtml(error)}</p>` : ""}
+  <form method="post" action="/oauth/authorize"><input type="hidden" name="request_id" value="${escapeHtml(requestId)}">
+  <label>E-mail<input autocomplete="username" name="email" required type="email"></label>
+  <label>Senha<input autocomplete="current-password" name="password" required type="password"></label>
+  <button type="submit">Autorizar conexão</button></form>
+  <small>Autorize apenas se você iniciou esta conexão e reconhece o aplicativo de destino.</small></main></body></html>`;
 }
 
 export function registerOAuthRoutes(app: Express) {
@@ -57,7 +70,7 @@ export function registerOAuthRoutes(app: Express) {
     try {
       const query = req.query as Record<string, string | undefined>;
       const authorization = createAuthorizationRequest({ clientId: query.client_id ?? "", redirectUri: query.redirect_uri ?? "", state: query.state, codeChallenge: query.code_challenge ?? "", codeChallengeMethod: query.code_challenge_method ?? "", scope: query.scope, resource: query.resource, responseType: query.response_type });
-      res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", "x-frame-options": "DENY" }).send(authorizationPage(authorization.id, authorization.clientName));
+      res.set({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store", "content-security-policy": "default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; base-uri 'none'; frame-ancestors 'none'", "x-frame-options": "DENY" }).send(authorizationPage(authorization));
     } catch (error) { res.status(400).json(oauthError(error)); }
   });
 
@@ -69,7 +82,7 @@ export function registerOAuthRoutes(app: Express) {
       requestId = form.request_id ?? "";
       res.redirect(303, authorizeWithPassword(requestId, form.email ?? "", form.password ?? ""));
     } catch (error) {
-      res.status(401).set({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }).send(authorizationPage(requestId, "ChatGPT MCP", error instanceof Error ? error.message : "Não foi possível autorizar."));
+      res.status(401).set({ "content-type": "text/html; charset=utf-8", "cache-control": "no-store" }).send(authorizationPage(getAuthorizationRequestDetails(requestId) ?? { id: "", clientName: "Cliente MCP", redirectUri: "", scopes: "" }, error instanceof Error ? error.message : "Não foi possível autorizar."));
     }
   });
 
