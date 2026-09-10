@@ -65,6 +65,18 @@ Diagnósticos administrativos são auditados em `admin_audit_log` com horário, 
 
 ## Ferramentas
 
+### Habilidades e catálogo compartilhado
+
+O MCP oferece ferramentas (o que a IA pode fazer) e habilidades (como seguir os fluxos recomendados). As habilidades oficiais ficam em `mcp/skills/*/SKILL.md`. O leitor `mcp/skills/catalog.ts` deriva nome, descrição e instruções desses arquivos, sem duplicar regras na interface.
+
+A rota autenticada `/ia` consulta esse catálogo no servidor a cada renderização e envia ao navegador somente nome, descrição e disponibilidade. A lista é dinâmica em relação aos arquivos incluídos na instalação, não uma consulta de disponibilidade ao serviço remoto. Catálogo vazio, ausente ou inválido produz um aviso independente do estado OAuth. Atualizações dos arquivos aparecem ao recarregar a página.
+
+O servidor registra recursos MCP `studyflow://skills/<identificador>` para clientes que conseguem descobri-los e as ferramentas de compatibilidade `list_skills` e `get_skill`. Expor recursos não garante suporte nativo a Skills em todo cliente. Essas consultas passam pela mesma autenticação OAuth do endpoint `/mcp`; não executam fluxos, não concedem escrita e não chamam o AI Gateway. Instruções completas são entregues ao cliente MCP que as solicita, nunca à tela `/ia`.
+
+O Dockerfile existente já inclui a pasta `mcp` nos serviços web e MCP. Ambos devem usar a mesma versão dos arquivos. Se o catálogo falhar, as demais ferramentas continuam disponíveis e as consultas pelo catálogo podem ser tentadas novamente.
+
+### Operações de estudo
+
 Leitura: `get_current_user`, `list_sources`, `get_source`, `get_source_file`, `get_active_plan`, `list_plans`, `get_plan_sources`, `list_questions`, `list_calendar`, `get_activity`, `get_performance`.
 
 Escrita: `activate_plan`, `rename_plan`, `archive_plan`, `restore_plan`, `create_source`, `save_source_analysis`, `save_source_topics`, `save_incidence`, `save_questions`, `create_activity`, `update_activity`.

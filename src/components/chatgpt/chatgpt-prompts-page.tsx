@@ -39,19 +39,19 @@ export function ChatGptPromptsPage() {
 
   return (
     <div className="standard-page chatgpt-prompts-page">
-      <PageHeading description="Prompts prontos para usar a conexão MCP sem chamadas automáticas ou cobrança por token no Study Flow." eyebrow="Conexão sob seu controle" title="Usar com ChatGPT" />
+      <PageHeading description="Se sua IA não descobrir as Skills automaticamente, use estes prompts para iniciar os principais fluxos manualmente." eyebrow="Conexão sob seu controle" title="Compatibilidade / Prompts manuais" />
       <Link className="button button--ghost" href="/ia">Conectar minha IA via MCP</Link>
       <section className="chatgpt-intro">
         <span><Bot size={24} /></span>
-        <div><h2>Seus dados não são enviados automaticamente</h2><p>Para usar o ChatGPT, conecte o app Study Flow no ChatGPT e solicite a análise por lá. O Study Flow não chama a API da OpenAI.</p></div>
+        <div><h2>Seus dados não são enviados automaticamente</h2><p>Conecte o Study Flow no ChatGPT, Claude ou outro cliente MCP compatível e solicite a análise por lá. Neste fluxo, você usa sua própria IA; a IA integrada do Study Flow é uma opção separada.</p></div>
       </section>
       <section className="chatgpt-steps" aria-label="Como usar">
-        {["Abra o ChatGPT", "Selecione ou ative Study Flow", "Cole um dos prompts", "Confirme gravações quando solicitado"].map((step, index) => <div key={step}><strong>{index + 1}</strong><span>{step}</span></div>)}
+        {["Abra sua IA", "Selecione ou ative Study Flow", "Cole um dos prompts", "Confirme gravações quando solicitado"].map((step, index) => <div key={step}><strong>{index + 1}</strong><span>{step}</span></div>)}
       </section>
       <section className="prompt-grid">
         {prompts.map((item) => <article className="prompt-card" key={item.title}><header><span>{item.title}</span><small>{item.description}</small></header><blockquote>{item.prompt}</blockquote><button className="button button--ghost" onClick={() => void copy(item.title, item.prompt)} type="button">{copied === item.title ? <Check size={16} /> : <Copy size={16} />}{copied === item.title ? "Copiado" : "Copiar prompt"}</button></article>)}
       </section>
-      <p className="chatgpt-footnote"><ExternalLink size={14} /> A conversa e a escolha do modelo acontecem no ChatGPT; o Study Flow continua sendo apenas a fonte MCP/OAuth dos seus dados.</p>
+      <p className="chatgpt-footnote"><ExternalLink size={14} /> Neste fluxo, a conversa e a escolha do modelo acontecem na sua IA; o acesso aos seus estudos usa a conexão MCP/OAuth do Study Flow.</p>
     </div>
   );
 }

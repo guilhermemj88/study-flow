@@ -39,7 +39,7 @@ O cliente deve suportar descoberta OAuth e abrir o login no navegador. Clientes 
 
 - **Não conectada:** adicione a conexão na IA e conclua o OAuth.
 - **Autorizada · aguardando uso:** ative o conector e faça uma consulta.
-- **Conexão confirmada:** houve uma chamada autenticada com autorização ativa. Não é uma verificação de disponibilidade em tempo real.
+- **Conexão MCP confirmada:** houve uma chamada autenticada com autorização ativa. Não é uma verificação de disponibilidade em tempo real.
 - **Autorização inativa:** reconecte e faça o login novamente.
 
 Se não aparecerem seus estudos, confira o e-mail usado no OAuth. Se a IA não alcançar o serviço, confira a URL completa e tente novamente. Uma URL pública indisponível será indicada na tela, sem oferecer endereços locais como alternativa para serviços na nuvem.
@@ -49,3 +49,11 @@ Se não aparecerem seus estudos, confira o e-mail usado no OAuth. Se a IA não a
 **IA do Study Flow** fica disponível quando a instalação possui um provider configurado. Ao selecioná-la, você pode testar disponibilidade, pedir recomendações de revisão e controlar a permissão de processamento externo dos seus materiais. Essa escolha é independente da conexão MCP. Consulte a [documentação da IA integrada](AI_GATEWAY.md).
 
 **Tokens pessoais / Personal Access Tokens** continuam indisponíveis nesta versão.
+
+## Habilidades e prompts manuais
+
+Após o estado da conexão, **Habilidades disponíveis** apresenta os fluxos oficiais do Study Flow: analisar fontes e provas, gerar plano de estudos, recalcular planejamento, recomendar revisões e gerenciar calendário BASIC. As ferramentas permitem consultar ou alterar estudos; as Skills orientam a IA a usar essas ferramentas corretamente.
+
+Clientes compatíveis podem descobrir as habilidades. Quando essa descoberta não estiver disponível, peça à sua IA para consultar o catálogo de habilidades do Study Flow e ler as instruções do fluxo desejado. O suporte depende do cliente, inclusive no ChatGPT e no Claude.
+
+Em **Compatibilidade / Prompts manuais**, o link **Ver sugestões de prompts** mantém a página `/chatgpt` e os prompts existentes para iniciar esses fluxos manualmente. Se o catálogo não puder ser consultado, a tela apresenta um aviso; os controles de conexão e os guias continuam acessíveis.

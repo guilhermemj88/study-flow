@@ -4,7 +4,7 @@ import { ChatGptPromptsPage } from "@/components/chatgpt/chatgpt-prompts-page";
 import { requirePageUser } from "@/lib/auth/server-session";
 import { getActiveStudyMode } from "@/lib/study-methods/server";
 
-export const metadata: Metadata = { title: "Usar com ChatGPT" };
+export const metadata: Metadata = { title: "Compatibilidade / Prompts manuais" };
 
 export default async function ChatGptPage() {
   const user = await requirePageUser();

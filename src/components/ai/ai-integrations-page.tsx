@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 import { Bot, Cable, Check, Copy, ExternalLink, KeyRound, RefreshCw, ShieldCheck, Sparkles, Unplug, UserRound } from "lucide-react";
 import { PageHeading } from "@/components/ui/page-heading";
 import { StudyFlowAiPanel } from "@/components/ai/study-flow-ai-panel";
+import { McpSkillsPanel } from "@/components/ai/mcp-skills-panel";
+import type { McpSkillCatalog } from "@/types/mcp-skills";
 import type { AiIntegrationOverview, AiMode, McpConnectionStatus } from "@/types/ai-integration";
 
 const modes = [
@@ -16,7 +18,7 @@ const modes = [
 const statuses: Record<McpConnectionStatus, { title: string; description: string }> = {
   not_connected: { title: "Não conectada", description: "Adicione a URL à sua IA e conclua o login do Study Flow para autorizar o acesso." },
   authorized: { title: "Autorizada · aguardando uso", description: "Sua autorização OAuth está ativa. Ative o Study Flow na sua IA e faça uma consulta para confirmar a conexão." },
-  connected: { title: "Conexão confirmada", description: "Há uma autorização ativa e uma chamada MCP autenticada confirmada para sua conta. Isso não é um teste de disponibilidade em tempo real." },
+  connected: { title: "Conexão MCP confirmada", description: "Esta conta possui uma autorização ativa e já realizou uma chamada MCP autenticada. O status indica a última atividade conhecida e não representa monitoramento contínuo do serviço." },
   inactive: { title: "Autorização inativa", description: "O acesso anterior expirou, foi revogado ou pertence a um endereço anterior. Reconecte o Study Flow na sua IA." },
 };
 
@@ -32,7 +34,7 @@ async function requestOverview(body?: object): Promise<AiIntegrationOverview> {
   return response.json();
 }
 
-export function AiIntegrationsPage({ initialOverview }: { initialOverview: AiIntegrationOverview }) {
+export function AiIntegrationsPage({ initialOverview, skillCatalog }: { initialOverview: AiIntegrationOverview; skillCatalog: McpSkillCatalog }) {
   const [overview, setOverview] = useState(initialOverview);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState<{ text: string; error?: boolean } | null>(null);
@@ -138,6 +140,8 @@ export function AiIntegrationsPage({ initialOverview }: { initialOverview: AiInt
             {accessControls()}
           </section>
 
+          <McpSkillsPanel catalog={skillCatalog} />
+
           <section className="ai-panel ai-guides" aria-labelledby="connection-guide-heading">
             <h2 id="connection-guide-heading">Como conectar</h2>
             <p>Copie a URL, adicione o Study Flow na sua IA e conclua o login OAuth. Você faz a conexão com sua própria conta.</p>
@@ -150,6 +154,7 @@ export function AiIntegrationsPage({ initialOverview }: { initialOverview: AiInt
                 <li>Em uma conversa, ative Study Flow no menu de ferramentas e peça: “Consulte meu calendário de estudos, sem fazer alterações”.</li>
               </ol>
               <p>A disponibilidade depende da sua conta e das regras do workspace no ChatGPT.</p>
+              <p>Depois de conectar, o ChatGPT pode usar as ferramentas do Study Flow e, quando houver suporte no cliente, consultar as Skills disponíveis para seguir os fluxos recomendados.</p>
               <a href="https://developers.openai.com/plugins/deploy/connect-chatgpt" rel="noreferrer" target="_blank">Guia oficial do ChatGPT <ExternalLink size={13} /></a>
             </details>
             <details>
@@ -161,6 +166,7 @@ export function AiIntegrationsPage({ initialOverview }: { initialOverview: AiInt
                 <li>Ative Study Flow nos conectores da conversa e peça uma consulta ao seu calendário.</li>
               </ol>
               <p>Em contas Team e Enterprise, o proprietário do workspace pode precisar disponibilizar o conector antes do seu login individual.</p>
+              <p>Depois de conectar, o Claude pode usar as ferramentas do Study Flow e, quando houver suporte no cliente, consultar as Skills disponíveis para seguir os fluxos recomendados.</p>
               <a href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp" rel="noreferrer" target="_blank">Guia oficial do Claude <ExternalLink size={13} /></a>
             </details>
             <details>
@@ -173,6 +179,7 @@ export function AiIntegrationsPage({ initialOverview }: { initialOverview: AiInt
                 <div><dt>Autenticação</dt><dd>OAuth 2.1 · Authorization Code com PKCE S256</dd></div>
                 <div><dt>Registro de cliente</dt><dd>Automático (Dynamic Client Registration), com callback HTTPS</dd></div>
                 <div><dt>Permissões</dt><dd><code>studyflow:read</code> para consultar; <code>studyflow:write</code> para salvar alterações</dd></div>
+                <div><dt>Skills</dt><dd>Descoberta automática quando suportada pelo cliente. Fallback disponível pelo catálogo MCP: peça à sua IA para listar as habilidades e consultar as instruções do fluxo desejado.</dd></div>
               </dl>
               <p>Use a descoberta automática de autenticação e o registro de cliente público (sem segredo). Conclua o login no navegador. Clientes sem suporte a OAuth ainda não podem se conectar.</p>
             </details>
@@ -184,8 +191,13 @@ export function AiIntegrationsPage({ initialOverview }: { initialOverview: AiInt
                 <li>Se não aparecerem seus estudos, confira o e-mail usado no OAuth e refaça a conexão com a conta exibida nesta tela.</li>
                 <li>Se a IA não alcançar o serviço, confira a URL completa e tente novamente mais tarde. Acessar a URL diretamente no navegador pode pedir autenticação; isso é esperado.</li>
               </ul>
-              <Link href="/chatgpt">Ver sugestões de prompts</Link>
             </details>
+          </section>
+
+          <section className="ai-panel" aria-labelledby="manual-prompts-heading">
+            <h2 id="manual-prompts-heading">Compatibilidade / Prompts manuais</h2>
+            <p>Se sua IA não descobrir as Skills automaticamente, você pode usar estes prompts para iniciar os principais fluxos manualmente.</p>
+            <Link className="button button--ghost" href="/chatgpt">Ver sugestões de prompts</Link>
           </section>
 
           <section className="ai-panel ai-future-auth" aria-labelledby="personal-tokens-heading">

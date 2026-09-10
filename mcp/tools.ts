@@ -8,6 +8,7 @@ import { LocalPlannerStore } from "@/lib/local/planner-store";
 import type { ActivityDraft, StudyActivity } from "@/types/activity";
 import type { LocalAuthUser } from "@/types/auth";
 import { resolveTargetUser, type TargetUserInput } from "./target-user";
+import { registerMcpSkills } from "./skills/register";
 
 const sourceType = z.enum(["exam", "edital", "other"]);
 const date = z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe("Data ISO no formato YYYY-MM-DD");
@@ -71,6 +72,7 @@ export function createStudyFlowMcpServer(authenticated: string | LocalAuthUser, 
     instructions: "Use os dados do usuário OAuth atual por padrão. Um administrador pode informar targetUserEmail ou targetUserId explicitamente; o servidor valida a role e audita a troca de contexto. O plano ativo informa seu studyMode. No modo basic, criar um estudo agenda as revisões automaticamente; ferramentas do planejador adaptativo são exclusivas do modo advanced.",
   });
   const canWrite = scopes.includes("studyflow:write");
+  registerMcpSkills(server);
   const requireWrite = () => { if (!canWrite) throw new Error("O token não possui o escopo studyflow:write."); };
 
   server.registerTool("get_current_user", {

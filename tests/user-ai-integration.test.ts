@@ -113,6 +113,12 @@ test("estado exige autorização e chamada reais do mesmo usuário, mesmo quando
     await client.connect(transport);
     const tools = await client.listTools();
     assert.ok(tools.tools.some((tool) => tool.name === "list_calendar"));
+    const aiRunsBefore = getDatabase().prepare("SELECT COUNT(*) AS total FROM ai_runs").get();
+    const skills = await client.callTool({ name: "list_skills", arguments: {} });
+    assert.ok(!skills.isError);
+    assert.ok(!(await client.callTool({ name: "get_skill", arguments: { id: "gerar-plano" } })).isError);
+    assert.equal((await client.listResources()).resources.length, 5);
+    assert.deepEqual(getDatabase().prepare("SELECT COUNT(*) AS total FROM ai_runs").get(), aiRunsBefore);
     const calendar = await client.callTool({ name: "list_calendar", arguments: { dateFrom: "2026-09-01", dateTo: "2026-09-30" } });
     assert.ok(!calendar.isError);
   } finally { await client.close(); }
@@ -125,6 +131,11 @@ test("estado exige autorização e chamada reais do mesmo usuário, mesmo quando
   assert.equal(revoked.status, 200);
   assert.equal(getAiIntegrationOverview(alice).mcp.status, "inactive");
   assert.equal(resolveAccessToken(aliceGrant.tokens.access_token), null);
+  const afterRevoke = await fetch(`${localUrl}/mcp`, {
+    method: "POST", headers: { authorization: `Bearer ${aliceGrant.tokens.access_token}`, "content-type": "application/json" },
+    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "list_skills", arguments: {} } }),
+  });
+  assert.equal(afterRevoke.status, 401);
   assert.throws(() => refreshAccessToken({ clientId: aliceGrant.client.client_id, refreshToken: aliceGrant.tokens.refresh_token }));
   assert.equal(resolveAccessToken(bobGrant.tokens.access_token)?.user.id, bob.id);
   assert.equal(getAiIntegrationOverview(bob).mcp.status, "authorized");
